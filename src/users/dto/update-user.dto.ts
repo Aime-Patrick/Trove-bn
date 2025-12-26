@@ -18,4 +18,9 @@ export class UpdateUserDto {
   @IsString()
   @IsEnum(['Male', 'Female', 'Other', 'Prefer not to say'])
   gender?: string;
+
+  @ApiPropertyOptional({ example: 'fcm-token-string', description: 'Firebase Cloud Messaging device token' })
+  @IsOptional()
+  @IsString()
+  deviceToken?: string;
 }

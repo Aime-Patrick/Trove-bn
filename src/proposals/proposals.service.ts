@@ -34,9 +34,14 @@ export class ProposalsService {
     // Notify all group members
     const members = await this.groupsService.getGroupMembers(groupId);
     for (const member of members) {
-      if (member.userId.toString() !== proposerId) {
+      // Handle populated userId (can be an object with _id or a string)
+      const memberUserId = typeof member.userId === 'object' 
+        ? (member.userId as any)._id?.toString() 
+        : member.userId?.toString();
+      
+      if (memberUserId && memberUserId !== proposerId) {
         await this.notificationsService.create(
-          member.userId.toString(),
+          memberUserId,
           'New Proposal',
           `A new proposal has been created: ${description}`,
           'proposal',

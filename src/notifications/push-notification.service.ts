@@ -15,19 +15,43 @@ export class PushNotificationService implements OnModuleInit {
 
   onModuleInit() {
     try {
-      const serviceAccountPath = path.join(process.cwd(), 'firebase-service-account.json');
-      
-      if (fs.existsSync(serviceAccountPath)) {
-        const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
-        
+      let serviceAccount: admin.ServiceAccount | null = null;
+
+      // Option 1: Load from base64 environment variable (for deployment)
+      if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
+        const decoded = Buffer.from(
+          process.env.FIREBASE_SERVICE_ACCOUNT_BASE64,
+          'base64',
+        ).toString('utf-8');
+        serviceAccount = JSON.parse(decoded);
+        this.logger.log('Firebase credentials loaded from environment variable.');
+      }
+      // Option 2: Load from file (for local development)
+      else {
+        const serviceAccountPath = path.join(
+          process.cwd(),
+          'firebase-service-account.json',
+        );
+
+        if (fs.existsSync(serviceAccountPath)) {
+          serviceAccount = JSON.parse(
+            fs.readFileSync(serviceAccountPath, 'utf8'),
+          );
+          this.logger.log('Firebase credentials loaded from file.');
+        }
+      }
+
+      if (serviceAccount) {
         admin.initializeApp({
           credential: admin.credential.cert(serviceAccount),
         });
-        
+
         this.isInitialized = true;
         this.logger.log('Firebase Admin initialized successfully.');
       } else {
-        this.logger.warn('firebase-service-account.json not found. Push notifications will be logged only.');
+        this.logger.warn(
+          'No Firebase credentials found. Push notifications will be logged only.',
+        );
       }
     } catch (error) {
       this.logger.error('Failed to initialize Firebase Admin:', error.message);

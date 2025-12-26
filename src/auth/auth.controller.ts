@@ -23,6 +23,11 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Returns JWT token and user info' })
   @ApiResponse({ status: 401, description: 'Invalid OTP' })
   async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
-    return this.authService.verifyOtp(verifyOtpDto.phoneNumber, verifyOtpDto.otp);
+    return this.authService.verifyOtp(
+      verifyOtpDto.phoneNumber,
+      verifyOtpDto.otp,
+      verifyOtpDto.intent,
+      verifyOtpDto.inviteCode,
+    );
   }
 }

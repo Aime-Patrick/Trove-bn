@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, Matches, Length } from 'class-validator';
+import { IsNotEmpty, IsString, Matches, Length, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class VerifyOtpDto {
@@ -21,4 +21,22 @@ export class VerifyOtpDto {
   @IsNotEmpty()
   @Length(6, 6)
   otp: string;
+
+  @ApiProperty({
+    example: 'join',
+    description: 'Intent of the authentication (join or create)',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  intent?: string;
+
+  @ApiProperty({
+    example: 'TRV-1234',
+    description: 'Invite code to join a group',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  inviteCode?: string;
 }

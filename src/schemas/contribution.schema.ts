@@ -29,3 +29,12 @@ export class Contribution extends Document {
 }
 
 export const ContributionSchema = SchemaFactory.createForClass(Contribution);
+
+ContributionSchema.set('toJSON', {
+  virtuals: true,
+  versionKey: false,
+  transform: function (doc, ret) {
+    (ret as any).id = ret._id.toString();
+    delete (ret as any)._id;
+  },
+});

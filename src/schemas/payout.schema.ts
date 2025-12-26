@@ -31,3 +31,12 @@ export class Payout extends Document {
 }
 
 export const PayoutSchema = SchemaFactory.createForClass(Payout);
+
+PayoutSchema.set('toJSON', {
+  virtuals: true,
+  versionKey: false,
+  transform: function (doc, ret) {
+    (ret as any).id = ret._id.toString();
+    delete (ret as any)._id;
+  },
+});

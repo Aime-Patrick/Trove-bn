@@ -38,3 +38,12 @@ export class Lottery extends Document {
 }
 
 export const LotterySchema = SchemaFactory.createForClass(Lottery);
+
+LotterySchema.set('toJSON', {
+  virtuals: true,
+  versionKey: false,
+  transform: function (doc, ret) {
+    (ret as any).id = ret._id.toString();
+    delete (ret as any)._id;
+  },
+});

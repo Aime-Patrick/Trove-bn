@@ -20,3 +20,12 @@ export class Savings extends Document {
 }
 
 export const SavingsSchema = SchemaFactory.createForClass(Savings);
+
+SavingsSchema.set('toJSON', {
+  virtuals: true,
+  versionKey: false,
+  transform: function (doc, ret) {
+    (ret as any).id = ret._id.toString();
+    delete (ret as any)._id;
+  },
+});

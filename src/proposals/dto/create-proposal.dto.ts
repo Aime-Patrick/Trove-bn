@@ -25,7 +25,6 @@ export class CreateProposalDto {
     description: 'Additional data for the proposal' 
   })
   @IsOptional()
-  @IsObject()
   data?: Record<string, any>;
 
   @ApiProperty({ 

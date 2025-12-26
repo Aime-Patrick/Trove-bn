@@ -39,4 +39,12 @@ export class NotificationsService {
   async markAsRead(id: string): Promise<void> {
     await this.notificationModel.findByIdAndUpdate(id, { read: true });
   }
+
+  async sendAnnouncementToGroup(groupId: string, senderId: string, title: string, body: string, memberUserIds: string[]): Promise<void> {
+    for (const userId of memberUserIds) {
+      if (userId !== senderId) {
+        await this.create(userId, title, body, 'announcement');
+      }
+    }
+  }
 }

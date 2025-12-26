@@ -5,8 +5,8 @@ export type InviteDocument = Invite & Document;
 
 @Schema({ timestamps: true })
 export class Invite {
-  @Prop({ required: true })
-  phoneNumber: string;
+  @Prop({ required: false })
+  phoneNumber?: string;
 
   @Prop({ required: true })
   code: string;
@@ -17,8 +17,14 @@ export class Invite {
   @Prop({ required: true })
   invitedBy: string; // Admin User ID
 
-  @Prop({ default: 'pending', enum: ['pending', 'accepted', 'expired'] })
+  @Prop({ default: 'pending', enum: ['pending', 'accepted', 'expired', 'used'] })
   status: string;
+
+  @Prop({ type: String, required: false })
+  usedBy?: string;
+
+  @Prop({ required: false })
+  expiresAt?: Date;
 }
 
 export const InviteSchema = SchemaFactory.createForClass(Invite);

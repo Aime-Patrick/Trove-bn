@@ -8,6 +8,6 @@ import { Invite, InviteSchema } from './schemas/invite.schema';
     MongooseModule.forFeature([{ name: Invite.name, schema: InviteSchema }]),
   ],
   providers: [InvitesService],
-  exports: [InvitesService],
+  exports: [InvitesService, MongooseModule],
 })
 export class InvitesModule {}

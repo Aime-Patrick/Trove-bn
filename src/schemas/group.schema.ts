@@ -29,6 +29,9 @@ export class Group extends Document {
   
   @Prop({ required: true, default: 'RWF' })
   currency: string;
+
+  @Prop({ required: true, unique: true })
+  inviteCode: string;
 }
 
 export const GroupSchema = SchemaFactory.createForClass(Group);

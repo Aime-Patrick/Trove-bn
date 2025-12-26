@@ -47,4 +47,21 @@ export class GroupsController {
   async updateSettings(@Param('id') id: string, @Body() updateData: any) {
     return this.groupsService.updateGroup(id, updateData);
   }
+
+  @Post('join')
+  @ApiOperation({ summary: 'Join group by invite code' })
+  async joinByCode(@Body('inviteCode') inviteCode: string, @Request() req: any) {
+    return this.groupsService.joinByInviteCode(req.user.userId, inviteCode);
+  }
+
+  @Post(':id/invite')
+  @ApiOperation({ summary: 'Generate a unique one-time invite code' })
+  async createInvite(@Param('id') id: string, @Body('phoneNumber') phoneNumber: string, @Request() req: any) {
+    try {
+      return await this.groupsService.createInvite(id, req.user.userId, phoneNumber);
+    } catch (error) {
+      console.error('Error in GroupsController.createInvite:', error);
+      throw error;
+    }
+  }
 }

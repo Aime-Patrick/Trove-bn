@@ -3,22 +3,104 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Group } from '../schemas/group.schema';
 import { GroupMember } from '../schemas/group-member.schema';
+import { Invite } from '../invites/schemas/invite.schema';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class GroupsService {
   constructor(
     @InjectModel(Group.name) private groupModel: Model<Group>,
     @InjectModel(GroupMember.name) private memberModel: Model<GroupMember>,
+    @InjectModel(Invite.name) private inviteModel: Model<Invite>,
+    private usersService: UsersService,
   ) {}
 
   async createGroup(adminId: string, groupData: Partial<Group>): Promise<Group> {
-    const newGroup = new this.groupModel({ ...groupData, adminId });
+    const inviteCode = await this.generateUniqueInviteCode();
+    const newGroup = new this.groupModel({ ...groupData, adminId, inviteCode });
     const savedGroup = await newGroup.save();
     
     // Auto-add admin as member
     await this.joinGroup(adminId, (savedGroup as any)._id.toString());
     
     return savedGroup;
+  }
+
+  private async generateUniqueInviteCode(): Promise<string> {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    let isUnique = false;
+
+    while (!isUnique) {
+      code = '';
+      for (let i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      // Check both Group and Invite models for uniqueness
+      const existingGroup = await this.groupModel.findOne({ inviteCode: code });
+      const existingInvite = await this.inviteModel.findOne({ code });
+      if (!existingGroup && !existingInvite) isUnique = true;
+    }
+    return code;
+  }
+
+  async createInvite(groupId: string, invitedBy: string, phoneNumber?: string): Promise<Invite> {
+    console.log(`Generating invite for group ${groupId} by user ${invitedBy}${phoneNumber ? ` for ${phoneNumber}` : ''}`);
+    try {
+      if (phoneNumber) {
+        // Check if user exists and is already in the group
+        const user = await this.usersService.findByPhone(phoneNumber);
+        if (user) {
+          const existingMember = await this.memberModel.findOne({ userId: (user as any)._id, groupId });
+          if (existingMember) {
+            throw new BadRequestException('This user is already a member of the group');
+          }
+        }
+
+        // Check for existing pending invite
+        const existingInvite = await this.inviteModel.findOne({ phoneNumber, groupId, status: 'pending' });
+        if (existingInvite) {
+          return existingInvite;
+        }
+      }
+
+      const code = await this.generateUniqueInviteCode();
+      console.log(`Generated unique code: ${code}`);
+      const invite = new this.inviteModel({
+        code,
+        groupId,
+        invitedBy,
+        phoneNumber,
+        status: 'pending',
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days expiry
+      });
+      const savedInvite = await invite.save();
+      console.log(`Invite saved successfully: ${savedInvite._id}`);
+      return savedInvite;
+    } catch (error) {
+      console.error('Error in createInvite:', error);
+      throw error;
+    }
+  }
+
+  async joinByInviteCode(userId: string, inviteCode: string): Promise<GroupMember> {
+    const upperCode = inviteCode.toUpperCase();
+    
+    // First check for a unique one-time invite
+    const invite = await this.inviteModel.findOne({ code: upperCode, status: 'pending' });
+    if (invite) {
+      const member = await this.joinGroup(userId, invite.groupId);
+      invite.status = 'used';
+      invite.usedBy = userId;
+      await invite.save();
+      return member;
+    }
+
+    // Fallback to group-wide invite code (for backward compatibility)
+    const group = await this.groupModel.findOne({ inviteCode: upperCode });
+    if (!group) throw new BadRequestException('Invalid or expired invite code');
+
+    return this.joinGroup(userId, (group as any)._id.toString());
   }
 
   async joinGroup(userId: string, groupId: string): Promise<GroupMember> {
@@ -58,12 +140,27 @@ export class GroupsService {
   }
 
   async findAll(): Promise<Group[]> {
-    return this.groupModel.find().exec();
+    const groups = await this.groupModel.find().exec();
+    // Ensure all groups have invite codes (migration for existing groups)
+    for (const group of groups) {
+      if (!group.inviteCode) {
+        group.inviteCode = await this.generateUniqueInviteCode();
+        await group.save();
+      }
+    }
+    return groups;
   }
 
   async findById(id: string): Promise<Group> {
     const group = await this.groupModel.findById(id).exec();
     if (!group) throw new BadRequestException('Group not found');
+    
+    // Ensure invite code exists
+    if (!group.inviteCode) {
+      group.inviteCode = await this.generateUniqueInviteCode();
+      await group.save();
+    }
+    
     return group;
   }
 

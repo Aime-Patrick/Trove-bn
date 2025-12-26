@@ -41,4 +41,10 @@ export class GroupsController {
   async addMember(@Param('id') id: string, @Body() addMemberDto: AddMemberDto) {
     return this.groupsService.joinGroup(addMemberDto.userId, id);
   }
+
+  @Post(':id/settings')
+  @ApiOperation({ summary: 'Update group settings' })
+  async updateSettings(@Param('id') id: string, @Body() updateData: any) {
+    return this.groupsService.updateGroup(id, updateData);
+  }
 }

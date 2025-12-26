@@ -26,6 +26,9 @@ export class Group extends Document {
 
   @Prop({ required: true, default: 1 })
   currentRound: number;
+  
+  @Prop({ required: true, default: 'RWF' })
+  currency: string;
 }
 
 export const GroupSchema = SchemaFactory.createForClass(Group);

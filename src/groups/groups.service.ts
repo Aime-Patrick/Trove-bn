@@ -66,4 +66,10 @@ export class GroupsService {
     if (!group) throw new BadRequestException('Group not found');
     return group;
   }
+
+  async updateGroup(id: string, updateData: Partial<Group>): Promise<Group> {
+    const group = await this.groupModel.findByIdAndUpdate(id, updateData, { new: true }).exec();
+    if (!group) throw new BadRequestException('Group not found');
+    return group;
+  }
 }

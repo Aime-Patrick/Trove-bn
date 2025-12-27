@@ -32,6 +32,9 @@ export class Group extends Document {
 
   @Prop({ required: true, unique: true })
   inviteCode: string;
+
+  @Prop()
+  nextLotteryAt?: Date;
 }
 
 export const GroupSchema = SchemaFactory.createForClass(Group);

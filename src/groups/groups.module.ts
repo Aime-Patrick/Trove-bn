@@ -6,6 +6,7 @@ import { Group, GroupSchema } from '../schemas/group.schema';
 import { GroupMember, GroupMemberSchema } from '../schemas/group-member.schema';
 import { InvitesModule } from '../invites/invites.module';
 import { UsersModule } from '../users/users.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { UsersModule } from '../users/users.module';
     ]),
     InvitesModule,
     UsersModule,
+    NotificationsModule,
   ],
   providers: [GroupsService],
   controllers: [GroupsController],

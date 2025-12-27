@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -47,5 +47,40 @@ export class NotificationsController {
     );
     
     return { message: 'Announcement sent to all members', count: memberUserIds.length - 1 };
+  }
+
+  @Get('announcements/:groupId')
+  @ApiOperation({ summary: 'Get active announcements for a group' })
+  @ApiResponse({ status: 200, description: 'Return active announcements' })
+  async getAnnouncements(@Param('groupId') groupId: string) {
+    return this.notificationsService.getGroupAnnouncements(groupId);
+  }
+
+  @Put('announcement/:id')
+  @ApiOperation({ summary: 'Update an announcement' })
+  @ApiResponse({ status: 200, description: 'Announcement updated' })
+  async updateAnnouncement(
+    @Param('id') id: string,
+    @Body() body: { title: string; body: string },
+  ) {
+    return this.notificationsService.updateAnnouncement(id, body.title, body.body);
+  }
+
+  @Delete('announcement/:id')
+  @ApiOperation({ summary: 'Delete an announcement' })
+  @ApiResponse({ status: 200, description: 'Announcement deleted' })
+  async deleteAnnouncement(@Param('id') id: string) {
+    await this.notificationsService.deleteAnnouncement(id);
+    return { message: 'Announcement deleted' };
+  }
+
+  @Put('announcement/:id/toggle')
+  @ApiOperation({ summary: 'Toggle announcement active state' })
+  @ApiResponse({ status: 200, description: 'Announcement toggled' })
+  async toggleAnnouncementActive(
+    @Param('id') id: string,
+    @Body('isActive') isActive: boolean,
+  ) {
+    return this.notificationsService.toggleAnnouncementActive(id, isActive);
   }
 }

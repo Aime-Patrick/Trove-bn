@@ -42,6 +42,12 @@ export class GroupsController {
     return this.groupsService.joinGroup(addMemberDto.userId, id);
   }
 
+  @Post(':id/members/:memberId/slots')
+  @ApiOperation({ summary: 'Update member slots' })
+  async updateMemberSlots(@Param('memberId') memberId: string, @Body('slots') slots: number) {
+    return this.groupsService.updateMemberSlots(memberId, slots);
+  }
+
   @Post(':id/settings')
   @ApiOperation({ summary: 'Update group settings' })
   async updateSettings(@Param('id') id: string, @Body() updateData: any) {
@@ -63,5 +69,11 @@ export class GroupsController {
       console.error('Error in GroupsController.createInvite:', error);
       throw error;
     }
+  }
+
+  @Post(':id/schedule-lottery')
+  @ApiOperation({ summary: 'Schedule the next lottery round' })
+  async scheduleLottery(@Param('id') id: string, @Body('nextLotteryAt') nextLotteryAt: string) {
+    return this.groupsService.scheduleNextLottery(id, new Date(nextLotteryAt));
   }
 }

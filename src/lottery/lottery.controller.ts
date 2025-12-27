@@ -32,4 +32,16 @@ export class LotteryController {
   async getStatus(@Query('groupId') groupId: string) {
     return this.lotteryService.getStatus(groupId);
   }
+
+  @Post('practice')
+  @ApiOperation({ summary: 'Start a practice lottery round' })
+  async startPractice(@Body('groupId') groupId: string) {
+    return this.lotteryService.startPracticeSelection(groupId);
+  }
+
+  @Post('reset-practice')
+  @ApiOperation({ summary: 'Reset the practice lottery state' })
+  async resetPractice(@Body('groupId') groupId: string) {
+    return this.lotteryService.resetPractice(groupId);
+  }
 }

@@ -5,6 +5,7 @@ import { Group } from '../schemas/group.schema';
 import { GroupMember } from '../schemas/group-member.schema';
 import { Invite } from '../invites/schemas/invite.schema';
 import { UsersService } from '../users/users.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class GroupsService {
@@ -13,6 +14,7 @@ export class GroupsService {
     @InjectModel(GroupMember.name) private memberModel: Model<GroupMember>,
     @InjectModel(Invite.name) private inviteModel: Model<Invite>,
     private usersService: UsersService,
+    private notificationsService: NotificationsService,
   ) {}
 
   async createGroup(adminId: string, groupData: Partial<Group>): Promise<Group> {
@@ -168,5 +170,50 @@ export class GroupsService {
     const group = await this.groupModel.findByIdAndUpdate(id, updateData, { new: true }).exec();
     if (!group) throw new BadRequestException('Group not found');
     return group;
+  }
+
+  async scheduleNextLottery(groupId: string, nextLotteryAt: Date): Promise<Group> {
+    const group = await this.groupModel.findByIdAndUpdate(
+      groupId,
+      { nextLotteryAt },
+      { new: true }
+    ).exec();
+    if (!group) throw new BadRequestException('Group not found');
+
+    // Notify all members about the new schedule
+    const members = await this.getGroupMembers(groupId);
+    const dateStr = nextLotteryAt.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+
+    for (const member of members) {
+      const memberId = (member.userId as any)._id?.toString() || member.userId.toString();
+      await this.notificationsService.create(
+        memberId,
+        'Lottery Scheduled! 📅',
+        `The next lottery for "${group.name}" is scheduled for ${dateStr}. Be ready!`,
+        'lottery_scheduled',
+        groupId,
+        'trove://home'
+      );
+    }
+
+    return group;
+  }
+
+  async findScheduledGroups(date: Date): Promise<Group[]> {
+    return this.groupModel.find({
+      nextLotteryAt: { $lte: date },
+    }).exec();
+  }
+
+  async updateMemberSlots(memberId: string, slots: number): Promise<GroupMember> {
+    if (slots < 1) throw new BadRequestException('Member must have at least 1 slot');
+    const member = await this.memberModel.findByIdAndUpdate(memberId, { slots }, { new: true }).exec();
+    if (!member) throw new BadRequestException('Member not found');
+    return member;
   }
 }

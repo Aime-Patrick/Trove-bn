@@ -23,6 +23,9 @@ export class GroupMember extends Document {
 
   @Prop({ required: true, default: 0 })
   totalSavings: number;
+
+  @Prop({ required: true, default: 1 })
+  slots: number;
 }
 
 export const GroupMemberSchema = SchemaFactory.createForClass(GroupMember);

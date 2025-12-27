@@ -5,6 +5,7 @@ export enum LotteryStatus {
   CONFIRMING = 'confirming',
   SPINNING = 'spinning',
   COMPLETED = 'completed',
+  PRACTICE = 'practice',
 }
 
 @Schema({ timestamps: true })
@@ -35,6 +36,9 @@ export class Lottery extends Document {
 
   @Prop()
   completedAt: Date;
+
+  @Prop({ default: false })
+  isPractice: boolean;
 }
 
 export const LotterySchema = SchemaFactory.createForClass(Lottery);

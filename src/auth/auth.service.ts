@@ -92,6 +92,9 @@ export class AuthService {
         phoneNumber: user.phoneNumber,
         name: user.name,
         role: user.role,
+        avatar: user.avatar,
+        gender: user.gender,
+        createdAt: (user as any).createdAt,
       },
     };
   }

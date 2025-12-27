@@ -5,3 +5,6 @@ package-lock.json
 dist
 test
 firebase-service-account.json
+*.md
+!README.md
+!readme.md

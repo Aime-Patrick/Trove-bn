@@ -6,6 +6,12 @@ import { GroupMember } from '../schemas/group-member.schema';
 import { Invite } from '../invites/schemas/invite.schema';
 import { UsersService } from '../users/users.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  PaginationDto,
+  PaginatedResult,
+  paginate,
+} from '../common/dto/pagination.dto';
+import { extractUserId } from '../common/utils/member.util';
 
 @Injectable()
 export class GroupsService {
@@ -17,14 +23,23 @@ export class GroupsService {
     private notificationsService: NotificationsService,
   ) {}
 
-  async createGroup(adminId: string, groupData: Partial<Group>): Promise<Group> {
+  async createGroup(
+    adminId: string,
+    groupData: Partial<Group>,
+  ): Promise<Group> {
     const inviteCode = await this.generateUniqueInviteCode();
     const newGroup = new this.groupModel({ ...groupData, adminId, inviteCode });
     const savedGroup = await newGroup.save();
-    
+
     // Auto-add admin as member
-    await this.joinGroup(adminId, (savedGroup as any)._id.toString());
-    
+    const groupId =
+      (
+        savedGroup as unknown as { _id?: { toString: () => string } }
+      )._id?.toString() || '';
+    if (groupId) {
+      await this.joinGroup(adminId, groupId);
+    }
+
     return savedGroup;
   }
 
@@ -46,21 +61,45 @@ export class GroupsService {
     return code;
   }
 
-  async createInvite(groupId: string, invitedBy: string, phoneNumber?: string): Promise<Invite> {
-    console.log(`Generating invite for group ${groupId} by user ${invitedBy}${phoneNumber ? ` for ${phoneNumber}` : ''}`);
+  async createInvite(
+    groupId: string,
+    invitedBy: string,
+    phoneNumber?: string,
+  ): Promise<Invite> {
+    console.log(
+      `Generating invite for group ${groupId} by user ${invitedBy}${phoneNumber ? ` for ${phoneNumber}` : ''}`,
+    );
     try {
       if (phoneNumber) {
         // Check if user exists and is already in the group
         const user = await this.usersService.findByPhone(phoneNumber);
         if (user) {
-          const existingMember = await this.memberModel.findOne({ userId: (user as any)._id, groupId });
+          const userId =
+            (
+              user as unknown as {
+                _id?: { toString: () => string };
+                id?: string;
+              }
+            )._id?.toString() ||
+            (user as unknown as { id?: string }).id ||
+            '';
+          const existingMember = await this.memberModel.findOne({
+            userId,
+            groupId,
+          });
           if (existingMember) {
-            throw new BadRequestException('This user is already a member of the group');
+            throw new BadRequestException(
+              'This user is already a member of the group',
+            );
           }
         }
 
         // Check for existing pending invite
-        const existingInvite = await this.inviteModel.findOne({ phoneNumber, groupId, status: 'pending' });
+        const existingInvite = await this.inviteModel.findOne({
+          phoneNumber,
+          groupId,
+          status: 'pending',
+        });
         if (existingInvite) {
           return existingInvite;
         }
@@ -77,7 +116,11 @@ export class GroupsService {
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days expiry
       });
       const savedInvite = await invite.save();
-      console.log(`Invite saved successfully: ${savedInvite._id}`);
+      const inviteId =
+        (
+          savedInvite as unknown as { _id?: { toString: () => string } }
+        )._id?.toString() || '';
+      console.log(`Invite saved successfully: ${inviteId}`);
       return savedInvite;
     } catch (error) {
       console.error('Error in createInvite:', error);
@@ -85,11 +128,17 @@ export class GroupsService {
     }
   }
 
-  async joinByInviteCode(userId: string, inviteCode: string): Promise<GroupMember> {
+  async joinByInviteCode(
+    userId: string,
+    inviteCode: string,
+  ): Promise<GroupMember> {
     const upperCode = inviteCode.toUpperCase();
-    
+
     // First check for a unique one-time invite
-    const invite = await this.inviteModel.findOne({ code: upperCode, status: 'pending' });
+    const invite = await this.inviteModel.findOne({
+      code: upperCode,
+      status: 'pending',
+    });
     if (invite) {
       const member = await this.joinGroup(userId, invite.groupId);
       invite.status = 'used';
@@ -102,7 +151,12 @@ export class GroupsService {
     const group = await this.groupModel.findOne({ inviteCode: upperCode });
     if (!group) throw new BadRequestException('Invalid or expired invite code');
 
-    return this.joinGroup(userId, (group as any)._id.toString());
+    const groupId =
+      (
+        group as unknown as { _id?: { toString: () => string } }
+      )._id?.toString() || '';
+    if (!groupId) throw new BadRequestException('Invalid group ID');
+    return this.joinGroup(userId, groupId);
   }
 
   async joinGroup(userId: string, groupId: string): Promise<GroupMember> {
@@ -113,13 +167,14 @@ export class GroupsService {
     if (existingMember) throw new BadRequestException('User already in group');
 
     const memberCount = await this.memberModel.countDocuments({ groupId });
-    if (memberCount >= group.maxMembers) throw new BadRequestException('Group is full');
+    if (memberCount >= group.maxMembers)
+      throw new BadRequestException('Group is full');
 
     // Calculate Buy-in Fee for mid-round joining
     // Formula: SlotPrice + (SlotPrice / 2 * NumberOfMembersWhoReceivedPayout)
-    const membersWhoReceivedPayout = await this.memberModel.countDocuments({ 
-      groupId, 
-      hasReceivedPayout: true 
+    const membersWhoReceivedPayout = await this.memberModel.countDocuments({
+      groupId,
+      hasReceivedPayout: true,
     });
 
     let buyInFee = group.slotPrice;
@@ -133,16 +188,61 @@ export class GroupsService {
       joinedAt: new Date(),
     });
 
-    console.log(`User ${userId} joined group ${groupId}. Buy-in fee: ${buyInFee}`);
+    console.log(
+      `User ${userId} joined group ${groupId}. Buy-in fee: ${buyInFee}`,
+    );
     return newMember.save();
   }
 
-  async getGroupMembers(groupId: string): Promise<GroupMember[]> {
-    return this.memberModel.find({ groupId }).populate('userId').exec();
+  async getGroupMembers(
+    groupId: string,
+    pagination?: PaginationDto,
+  ): Promise<PaginatedResult<GroupMember> | GroupMember[]> {
+    const query = this.memberModel.find({ groupId }).populate('userId');
+
+    if (pagination) {
+      const page = pagination.page || 1;
+      const limit = pagination.limit || 10;
+      const skip = (page - 1) * limit;
+
+      const [data, total] = await Promise.all([
+        query.skip(skip).limit(limit).exec(),
+        this.memberModel.countDocuments({ groupId }).exec(),
+      ]);
+
+      return paginate(data, page, limit, total);
+    }
+
+    return query.exec();
   }
 
-  async findAll(): Promise<Group[]> {
-    const groups = await this.groupModel.find().exec();
+  async findAll(
+    pagination?: PaginationDto,
+  ): Promise<PaginatedResult<Group> | Group[]> {
+    const query = this.groupModel.find();
+
+    if (pagination) {
+      const page = pagination.page || 1;
+      const limit = pagination.limit || 10;
+      const skip = (page - 1) * limit;
+
+      const [data, total] = await Promise.all([
+        query.skip(skip).limit(limit).exec(),
+        this.groupModel.countDocuments().exec(),
+      ]);
+
+      // Ensure all groups have invite codes (migration for existing groups)
+      for (const group of data) {
+        if (!group.inviteCode) {
+          group.inviteCode = await this.generateUniqueInviteCode();
+          await group.save();
+        }
+      }
+
+      return paginate(data, page, limit, total);
+    }
+
+    const groups = await query.exec();
     // Ensure all groups have invite codes (migration for existing groups)
     for (const group of groups) {
       if (!group.inviteCode) {
@@ -156,63 +256,77 @@ export class GroupsService {
   async findById(id: string): Promise<Group> {
     const group = await this.groupModel.findById(id).exec();
     if (!group) throw new BadRequestException('Group not found');
-    
+
     // Ensure invite code exists
     if (!group.inviteCode) {
       group.inviteCode = await this.generateUniqueInviteCode();
       await group.save();
     }
-    
+
     return group;
   }
 
   async updateGroup(id: string, updateData: Partial<Group>): Promise<Group> {
-    const group = await this.groupModel.findByIdAndUpdate(id, updateData, { new: true }).exec();
+    const group = await this.groupModel
+      .findByIdAndUpdate(id, updateData, { new: true })
+      .exec();
     if (!group) throw new BadRequestException('Group not found');
     return group;
   }
 
-  async scheduleNextLottery(groupId: string, nextLotteryAt: Date): Promise<Group> {
-    const group = await this.groupModel.findByIdAndUpdate(
-      groupId,
-      { nextLotteryAt },
-      { new: true }
-    ).exec();
+  async scheduleNextLottery(
+    groupId: string,
+    nextLotteryAt: Date,
+  ): Promise<Group> {
+    const group = await this.groupModel
+      .findByIdAndUpdate(groupId, { nextLotteryAt }, { new: true })
+      .exec();
     if (!group) throw new BadRequestException('Group not found');
 
     // Notify all members about the new schedule
     const members = await this.getGroupMembers(groupId);
-    const dateStr = nextLotteryAt.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    const membersArray = Array.isArray(members) ? members : members.data;
+    const dateStr = nextLotteryAt.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
 
-    for (const member of members) {
-      const memberId = (member.userId as any)._id?.toString() || member.userId.toString();
-      await this.notificationsService.create(
-        memberId,
-        'Lottery Scheduled! 📅',
-        `The next lottery for "${group.name}" is scheduled for ${dateStr}. Be ready!`,
-        'lottery_scheduled',
-        groupId,
-        'trove://home'
-      );
+    for (const member of membersArray) {
+      const memberId = extractUserId(member);
+      if (memberId) {
+        await this.notificationsService.create(
+          memberId,
+          'Lottery Scheduled!',
+          `The next lottery for "${group.name}" is scheduled for ${dateStr}. Be ready!`,
+          'lottery_scheduled',
+          groupId,
+          'trove://home',
+        );
+      }
     }
 
     return group;
   }
 
   async findScheduledGroups(date: Date): Promise<Group[]> {
-    return this.groupModel.find({
-      nextLotteryAt: { $lte: date },
-    }).exec();
+    return this.groupModel
+      .find({
+        nextLotteryAt: { $lte: date },
+      })
+      .exec();
   }
 
-  async updateMemberSlots(memberId: string, slots: number): Promise<GroupMember> {
-    if (slots < 1) throw new BadRequestException('Member must have at least 1 slot');
-    const member = await this.memberModel.findByIdAndUpdate(memberId, { slots }, { new: true }).exec();
+  async updateMemberSlots(
+    memberId: string,
+    slots: number,
+  ): Promise<GroupMember> {
+    if (slots < 1)
+      throw new BadRequestException('Member must have at least 1 slot');
+    const member = await this.memberModel
+      .findByIdAndUpdate(memberId, { slots }, { new: true })
+      .exec();
     if (!member) throw new BadRequestException('Member not found');
     return member;
   }

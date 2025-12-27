@@ -1,5 +1,10 @@
 import { Controller, Get, Put, Body, UseGuards, Request } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -31,7 +36,10 @@ export class UsersController {
 
   @Get('upload-signature')
   @ApiOperation({ summary: 'Get Cloudinary upload signature' })
-  @ApiResponse({ status: 200, description: 'Return Cloudinary upload signature' })
+  @ApiResponse({
+    status: 200,
+    description: 'Return Cloudinary upload signature',
+  })
   getUploadSignature() {
     return this.cloudinaryService.getUploadSignature();
   }

@@ -4,8 +4,14 @@ import { NotificationsService } from './notifications.service';
 import { NotificationsGateway } from './notifications.gateway';
 import { NotificationsController } from './notifications.controller';
 import { PushNotificationService } from './push-notification.service';
-import { Notification, NotificationSchema } from './schemas/notification.schema';
-import { Announcement, AnnouncementSchema } from './schemas/announcement.schema';
+import {
+  Notification,
+  NotificationSchema,
+} from './schemas/notification.schema';
+import {
+  Announcement,
+  AnnouncementSchema,
+} from './schemas/announcement.schema';
 import { User, UserSchema } from '../schemas/user.schema';
 import { GroupsModule } from '../groups/groups.module';
 
@@ -19,8 +25,11 @@ import { GroupsModule } from '../groups/groups.module';
     forwardRef(() => GroupsModule),
   ],
   controllers: [NotificationsController],
-  providers: [NotificationsService, NotificationsGateway, PushNotificationService],
+  providers: [
+    NotificationsService,
+    NotificationsGateway,
+    PushNotificationService,
+  ],
   exports: [NotificationsService, PushNotificationService],
 })
 export class NotificationsModule {}
-

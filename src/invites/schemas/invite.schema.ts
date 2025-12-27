@@ -17,7 +17,10 @@ export class Invite {
   @Prop({ required: true })
   invitedBy: string; // Admin User ID
 
-  @Prop({ default: 'pending', enum: ['pending', 'accepted', 'expired', 'used'] })
+  @Prop({
+    default: 'pending',
+    enum: ['pending', 'accepted', 'expired', 'used'],
+  })
   status: string;
 
   @Prop({ type: String, required: false })

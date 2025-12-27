@@ -18,7 +18,11 @@ export class Contribution extends Document {
   @Prop({ required: true })
   amount: number;
 
-  @Prop({ required: true, enum: ContributionStatus, default: ContributionStatus.PENDING })
+  @Prop({
+    required: true,
+    enum: ContributionStatus,
+    default: ContributionStatus.PENDING,
+  })
   status: ContributionStatus;
 
   @Prop({ required: true })

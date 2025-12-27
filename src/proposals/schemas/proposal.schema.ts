@@ -33,7 +33,11 @@ export class Proposal {
   @Prop({ required: true })
   description: string;
 
-  @Prop({ required: true, enum: ProposalStatus, default: ProposalStatus.PENDING })
+  @Prop({
+    required: true,
+    enum: ProposalStatus,
+    default: ProposalStatus.PENDING,
+  })
   status: ProposalStatus;
 
   @Prop({ type: Map, of: Boolean, default: {} })

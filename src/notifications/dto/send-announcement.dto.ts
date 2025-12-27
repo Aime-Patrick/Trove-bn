@@ -6,11 +6,17 @@ export class SendAnnouncementDto {
   @IsString()
   groupId: string;
 
-  @ApiProperty({ example: 'Meeting Tomorrow', description: 'Announcement subject/title' })
+  @ApiProperty({
+    example: 'Meeting Tomorrow',
+    description: 'Announcement subject/title',
+  })
   @IsString()
   title: string;
 
-  @ApiProperty({ example: 'Please attend the group meeting at 5pm.', description: 'Announcement message body' })
+  @ApiProperty({
+    example: 'Please attend the group meeting at 5pm.',
+    description: 'Announcement message body',
+  })
   @IsString()
   body: string;
 }

@@ -5,6 +5,7 @@ import { Lottery, LotteryStatus } from '../schemas/lottery.schema';
 import { GroupsService } from '../groups/groups.service';
 import { LotteryGateway } from './lottery.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
+import { extractUserId, extractUserName } from '../common/utils/member.util';
 
 @Injectable()
 export class LotteryService {
@@ -16,13 +17,19 @@ export class LotteryService {
   ) {}
 
   async confirmReadiness(userId: string, groupId: string): Promise<Lottery> {
-    let lottery = await this.lotteryModel.findOne({ groupId, status: LotteryStatus.CONFIRMING });
-    
+    let lottery = await this.lotteryModel.findOne({
+      groupId,
+      status: LotteryStatus.CONFIRMING,
+    });
+
     // Fetch group and user for notification context
     const group = await this.groupsService.findById(groupId);
     const members = await this.groupsService.getGroupMembers(groupId);
-    const joiningUser = members.find(m => (m.userId as any)._id.toString() === userId || m.userId === userId);
-    const joiningUserName = (joiningUser?.userId as any)?.name || 'A member';
+    const membersArray = Array.isArray(members) ? members : members.data;
+    const joiningUser = membersArray.find((m) => extractUserId(m) === userId);
+    const joiningUserName = joiningUser
+      ? extractUserName(joiningUser)
+      : 'A member';
 
     if (!lottery) {
       // Create new lottery round if not exists
@@ -34,37 +41,39 @@ export class LotteryService {
       });
 
       // Notify all members that a new lottery round is open for participation
-      for (const member of members) {
-        const memberId = (member.userId as any)._id?.toString() || member.userId.toString();
-        await this.notificationsService.create(
-          memberId,
-          'Lottery Open! 🎡',
-          `A new lottery round for "${group.name}" is now open. Join now to participate!`,
-          'lottery_open',
-          groupId,
-          'trove://lottery'
-        );
+      for (const member of membersArray) {
+        const memberId = extractUserId(member);
+        if (memberId) {
+          await this.notificationsService.create(
+            memberId,
+            'Lottery Open! 🎡',
+            `A new lottery round for "${group.name}" is now open. Join now to participate!`,
+            'lottery_open',
+            groupId,
+            'trove://lottery',
+          );
+        }
       }
     }
 
     if (!lottery.confirmedMembers.includes(userId)) {
       lottery.confirmedMembers.push(userId);
       await lottery.save();
-      
+
       // Notify everyone about the new confirmation
       this.lotteryGateway.broadcastLotteryUpdate(groupId, lottery);
 
       // Send push notifications to other members
-      for (const member of members) {
-        const memberId = (member.userId as any)._id?.toString() || member.userId.toString();
-        if (memberId !== userId) {
+      for (const member of membersArray) {
+        const memberId = extractUserId(member);
+        if (memberId && memberId !== userId) {
           await this.notificationsService.create(
             memberId,
             'Lottery Update 🎡',
             `${joiningUserName} just joined the lottery round!`,
             'lottery_join',
             groupId,
-            'trove://lottery'
+            'trove://lottery',
           );
         }
       }
@@ -74,16 +83,21 @@ export class LotteryService {
   }
 
   async startSelection(groupId: string): Promise<Lottery> {
-    const lottery = await this.lotteryModel.findOne({ groupId, status: LotteryStatus.CONFIRMING });
+    const lottery = await this.lotteryModel.findOne({
+      groupId,
+      status: LotteryStatus.CONFIRMING,
+    });
     if (!lottery) throw new BadRequestException('No active confirmation phase');
-    if (lottery.confirmedMembers.length === 0) throw new BadRequestException('No members confirmed');
+    if (lottery.confirmedMembers.length === 0)
+      throw new BadRequestException('No members confirmed');
 
     // Shuffle all confirmed members immediately to determine the full sequence
     // We create a pool where each member appears once for every slot they own
     const members = await this.groupsService.getGroupMembers(groupId);
+    const membersArray = Array.isArray(members) ? members : members.data;
     const pool: string[] = [];
     for (const userId of lottery.confirmedMembers) {
-      const member = members.find(m => (m.userId as any)._id?.toString() === userId || m.userId === userId);
+      const member = membersArray.find((m) => extractUserId(m) === userId);
       const slots = member?.slots || 1;
       for (let i = 0; i < slots; i++) {
         pool.push(userId);
@@ -97,31 +111,35 @@ export class LotteryService {
 
     // Notify all members that selection is starting
     const group = await this.groupsService.findById(groupId);
-    for (const member of members) {
-      const memberId = (member.userId as any)._id?.toString() || member.userId.toString();
-      await this.notificationsService.create(
-        memberId,
-        'Selection Starting! 🎰',
-        `The lottery selection for "${group.name}" is starting now. Watch the results live!`,
-        'lottery_start',
-        groupId,
-        'trove://lottery'
-      );
+    for (const member of membersArray) {
+      const memberId = extractUserId(member);
+      if (memberId) {
+        await this.notificationsService.create(
+          memberId,
+          'Selection Starting! 🎰',
+          `The lottery selection for "${group.name}" is starting now. Watch the results live!`,
+          'lottery_start',
+          groupId,
+          'trove://lottery',
+        );
+      }
     }
 
     // Broadcast "SPINNING" status to all clients
     this.lotteryGateway.broadcastLotteryUpdate(groupId, lottery);
 
     // Wait for 5 seconds to allow frontend animations to play
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await new Promise((resolve) => setTimeout(resolve, 5000));
 
     // Set final sequence and complete the lottery
     lottery.payoutOrder = shuffled;
     lottery.status = LotteryStatus.COMPLETED;
     // Set the first person in the sequence as the "selectedId" for UI highlights
     lottery.selectedId = shuffled[0];
-    const winner = members.find(m => (m.userId as any)._id?.toString() === lottery.selectedId || m.userId === lottery.selectedId);
-    lottery.selectedName = (winner?.userId as any)?.name || 'Member';
+    const winner = membersArray.find(
+      (m) => extractUserId(m) === lottery.selectedId,
+    );
+    lottery.selectedName = winner ? extractUserName(winner) : 'Member';
 
     await lottery.save();
 
@@ -134,15 +152,18 @@ export class LotteryService {
   async startPracticeSelection(groupId: string): Promise<void> {
     const group = await this.groupsService.findById(groupId);
     const members = await this.groupsService.getGroupMembers(groupId);
-    
+    const membersArray = Array.isArray(members) ? members : members.data;
+
     // Shuffle all members for the practice round
     // We create a pool where each member appears once for every slot they own
     const pool: string[] = [];
-    for (const member of members) {
-      const userId = (member.userId as any)._id?.toString() || member.userId.toString();
-      const slots = member.slots || 1;
-      for (let i = 0; i < slots; i++) {
-        pool.push(userId);
+    for (const member of membersArray) {
+      const userId = extractUserId(member);
+      if (userId) {
+        const slots = member.slots || 1;
+        for (let i = 0; i < slots; i++) {
+          pool.push(userId);
+        }
       }
     }
     const shuffled = pool.sort(() => Math.random() - 0.5);
@@ -153,15 +174,15 @@ export class LotteryService {
       status: LotteryStatus.SPINNING,
       isPractice: true,
       payoutOrder: [],
-    } as any);
+    });
 
     // Wait for 5 seconds
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await new Promise((resolve) => setTimeout(resolve, 5000));
 
     // Broadcast "PRACTICE" status with the full sequence
     // We use a custom status or flag to indicate this is a practice result
     const winnerId = shuffled[0];
-    const winner = members.find(m => (m.userId as any)._id?.toString() === winnerId || m.userId === winnerId);
+    const winner = membersArray.find((m) => extractUserId(m) === winnerId);
 
     this.lotteryGateway.broadcastLotteryUpdate(groupId, {
       groupId,
@@ -169,9 +190,9 @@ export class LotteryService {
       isPractice: true,
       payoutOrder: shuffled,
       selectedId: winnerId,
-      selectedName: (winner?.userId as any)?.name || 'Member',
+      selectedName: winner ? extractUserName(winner) : 'Member',
       round: group.currentRound,
-    } as any);
+    });
   }
 
   async resetPractice(groupId: string): Promise<void> {
@@ -182,10 +203,13 @@ export class LotteryService {
       isPractice: false,
       payoutOrder: [],
       confirmedMembers: [], // This will be refreshed by clients if they are in a real round
-    } as any);
+    });
   }
 
   async getStatus(groupId: string): Promise<Lottery | null> {
-    return this.lotteryModel.findOne({ groupId }).sort({ createdAt: -1 }).exec();
+    return this.lotteryModel
+      .findOne({ groupId })
+      .sort({ createdAt: -1 })
+      .exec();
   }
 }

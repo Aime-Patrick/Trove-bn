@@ -35,7 +35,7 @@ GroupMemberSchema.set('toJSON', {
   versionKey: false,
   transform: function (doc, ret) {
     (ret as any).id = ret._id.toString();
-    
+
     // Flatten populated userId if it exists
     if (ret.userId && typeof ret.userId === 'object') {
       const user = ret.userId as any;
@@ -43,7 +43,7 @@ GroupMemberSchema.set('toJSON', {
       (ret as any).phoneNumber = user.phoneNumber;
       (ret as any).userId = user._id || user.id;
     }
-    
+
     delete (ret as any)._id;
   },
 });

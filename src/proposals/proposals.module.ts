@@ -8,7 +8,9 @@ import { GroupsModule } from '../groups/groups.module';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Proposal.name, schema: ProposalSchema }]),
+    MongooseModule.forFeature([
+      { name: Proposal.name, schema: ProposalSchema },
+    ]),
     NotificationsModule,
     GroupsModule,
   ],

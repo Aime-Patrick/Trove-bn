@@ -1,5 +1,18 @@
-import { Controller, Post, Body, Get, Query, UseGuards, Request } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Query,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { LotteryService } from './lottery.service';
 import { StartLotteryDto } from './dto/start-lottery.dto';
 import { ConfirmParticipationDto } from './dto/confirm-participation.dto';
@@ -24,7 +37,10 @@ export class LotteryController {
     @Body() confirmParticipationDto: ConfirmParticipationDto,
     @Request() req: any,
   ) {
-    return this.lotteryService.confirmReadiness(req.user.userId, confirmParticipationDto.groupId); 
+    return this.lotteryService.confirmReadiness(
+      req.user.userId,
+      confirmParticipationDto.groupId,
+    );
   }
 
   @Get('status')

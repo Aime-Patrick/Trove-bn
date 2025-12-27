@@ -2,23 +2,45 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import * as crypto from 'crypto';
+
+// Polyfill for crypto global (required by @nestjs/schedule)
+if (typeof globalThis.crypto === 'undefined') {
+  (globalThis as any).crypto = crypto;
+}
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
-  
+
   // Global Prefix
   app.setGlobalPrefix('api');
-  
-  // CORS
-  app.enableCors();
-  
-  // Global Validation
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    transform: true,
-    forbidNonWhitelisted: true,
-  }));
+
+  // CORS - Configure based on environment
+  const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || [
+    'http://localhost:3000',
+    'http://localhost:19006',
+  ];
+  app.enableCors({
+    origin: process.env.NODE_ENV === 'production' ? allowedOrigins : true, // Allow all in development
+    credentials: true,
+  });
+
+  // Global Exception Filter
+  app.useGlobalFilters(new HttpExceptionFilter());
+
+  // Global Validation with sanitization
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      forbidNonWhitelisted: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
+    }),
+  );
 
   // Swagger Configuration
   const config = new DocumentBuilder()
@@ -32,7 +54,7 @@ async function bootstrap() {
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
-  
+
   logger.log(`🚀 Application is running on: http://localhost:${port}/api`);
   logger.log(`📚 Swagger documentation: http://localhost:${port}/api/docs`);
 }

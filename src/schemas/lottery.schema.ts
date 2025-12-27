@@ -16,7 +16,11 @@ export class Lottery extends Document {
   @Prop({ required: true })
   round: number;
 
-  @Prop({ required: true, enum: LotteryStatus, default: LotteryStatus.CONFIRMING })
+  @Prop({
+    required: true,
+    enum: LotteryStatus,
+    default: LotteryStatus.CONFIRMING,
+  })
   status: LotteryStatus;
 
   @Prop({ type: [String], default: [] })

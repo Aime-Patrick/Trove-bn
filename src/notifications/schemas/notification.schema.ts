@@ -22,7 +22,11 @@ export class Notification {
   @Prop({ required: true })
   body: string;
 
-  @Prop({ required: true, enum: NotificationType, default: NotificationType.INFO })
+  @Prop({
+    required: true,
+    enum: NotificationType,
+    default: NotificationType.INFO,
+  })
   type: string;
 
   @Prop({ required: false })

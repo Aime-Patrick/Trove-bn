@@ -12,7 +12,11 @@ export class Invite extends Document {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   invitedBy: string;
 
-  @Prop({ required: true, enum: ['pending', 'used', 'expired'], default: 'pending' })
+  @Prop({
+    required: true,
+    enum: ['pending', 'used', 'expired'],
+    default: 'pending',
+  })
   status: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: false })

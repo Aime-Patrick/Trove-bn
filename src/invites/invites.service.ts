@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Invite, InviteDocument } from './schemas/invite.schema';
@@ -6,9 +10,14 @@ import { CreateInviteDto } from './dto/create-invite.dto';
 
 @Injectable()
 export class InvitesService {
-  constructor(@InjectModel(Invite.name) private inviteModel: Model<InviteDocument>) {}
+  constructor(
+    @InjectModel(Invite.name) private inviteModel: Model<InviteDocument>,
+  ) {}
 
-  async createInvite(adminId: string, createInviteDto: CreateInviteDto): Promise<Invite> {
+  async createInvite(
+    adminId: string,
+    createInviteDto: CreateInviteDto,
+  ): Promise<Invite> {
     // Check if pending invite already exists
     const existingInvite = await this.inviteModel.findOne({
       phoneNumber: createInviteDto.phoneNumber,
@@ -40,7 +49,9 @@ export class InvitesService {
     });
 
     if (!invite) {
-      throw new BadRequestException('Invalid or expired invite code for this phone number.');
+      throw new BadRequestException(
+        'Invalid or expired invite code for this phone number.',
+      );
     }
 
     return invite;

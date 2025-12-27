@@ -1,21 +1,34 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Contribution, ContributionStatus } from '../schemas/contribution.schema';
+import {
+  Contribution,
+  ContributionStatus,
+} from '../schemas/contribution.schema';
 import { Payout, PayoutStatus } from '../schemas/payout.schema';
 import { Savings } from '../schemas/savings.schema';
 import { GroupsService } from '../groups/groups.service';
+import {
+  PaginationDto,
+  PaginatedResult,
+  paginate,
+} from '../common/dto/pagination.dto';
 
 @Injectable()
 export class FinanceService {
   constructor(
-    @InjectModel(Contribution.name) private contributionModel: Model<Contribution>,
+    @InjectModel(Contribution.name)
+    private contributionModel: Model<Contribution>,
     @InjectModel(Payout.name) private payoutModel: Model<Payout>,
     @InjectModel(Savings.name) private savingsModel: Model<Savings>,
     private groupsService: GroupsService,
   ) {}
 
-  async logContribution(userId: string, groupId: string, amount: number): Promise<Contribution> {
+  async logContribution(
+    userId: string,
+    groupId: string,
+    amount: number,
+  ): Promise<Contribution> {
     const contribution = new this.contributionModel({
       userId,
       groupId,
@@ -26,7 +39,12 @@ export class FinanceService {
     return contribution.save();
   }
 
-  async recordManualContribution(adminId: string, userId: string, groupId: string, amount: number): Promise<Contribution> {
+  async recordManualContribution(
+    adminId: string,
+    userId: string,
+    groupId: string,
+    amount: number,
+  ): Promise<Contribution> {
     const contribution = new this.contributionModel({
       userId,
       groupId,
@@ -42,11 +60,13 @@ export class FinanceService {
   async approvePayout(adminId: string, payoutId: string): Promise<Payout> {
     const payout = await this.payoutModel.findById(payoutId);
     if (!payout) throw new BadRequestException('Payout not found');
-    if (payout.status === PayoutStatus.PAID) throw new BadRequestException('Payout already paid');
+    if (payout.status === PayoutStatus.PAID)
+      throw new BadRequestException('Payout already paid');
 
     // Get group settings for savings percentage
-    // For MVP, we'll assume a fixed 10% if not found
-    const savingsAmount = payout.amount * 0.1;
+    const group = await this.groupsService.findById(payout.groupId);
+    const savingsPercentage = group.savingsPercentage || 10; // Default to 10% if not set
+    const savingsAmount = (payout.amount * savingsPercentage) / 100;
     const finalPayoutAmount = payout.amount - savingsAmount;
 
     payout.status = PayoutStatus.PAID;
@@ -61,18 +81,27 @@ export class FinanceService {
       groupId: payout.groupId,
       amount: savingsAmount,
       source: 'auto',
-      payoutId: (payout as any)._id,
+      payoutId: (payout as unknown as { _id: unknown })._id,
     });
     await savings.save();
 
-    console.log(`Payout ${payoutId} approved. Savings deducted: ${savingsAmount}`);
+    console.log(
+      `Payout ${payoutId} approved. Savings deducted: ${savingsAmount}`,
+    );
     return payout;
   }
 
-  async recordManualPayout(adminId: string, userId: string, groupId: string, amount: number): Promise<Payout> {
-    // For manual payouts, we still deduct savings
-    const savingsAmount = amount * 0.1;
-    
+  async recordManualPayout(
+    adminId: string,
+    userId: string,
+    groupId: string,
+    amount: number,
+  ): Promise<Payout> {
+    // Get group settings for savings percentage
+    const group = await this.groupsService.findById(groupId);
+    const savingsPercentage = group.savingsPercentage || 10; // Default to 10% if not set
+    const savingsAmount = (amount * savingsPercentage) / 100;
+
     const payout = new this.payoutModel({
       userId,
       groupId,
@@ -91,21 +120,78 @@ export class FinanceService {
       groupId,
       amount: savingsAmount,
       source: 'auto',
-      payoutId: (payout as any)._id,
+      payoutId: (payout as unknown as { _id: unknown })._id,
     });
     await savings.save();
 
     return payout;
   }
 
-  async getUserSavings(userId: string): Promise<Savings[]> {
-    return this.savingsModel.find({ userId }).exec();
-  }
-  async getContributions(groupId: string): Promise<Contribution[]> {
-    return this.contributionModel.find({ groupId }).sort({ createdAt: -1 }).exec();
+  async getUserSavings(
+    userId: string,
+    pagination?: PaginationDto,
+  ): Promise<PaginatedResult<Savings> | Savings[]> {
+    const query = this.savingsModel.find({ userId }).sort({ createdAt: -1 });
+
+    if (pagination) {
+      const page = pagination.page || 1;
+      const limit = pagination.limit || 10;
+      const skip = (page - 1) * limit;
+
+      const [data, total] = await Promise.all([
+        query.skip(skip).limit(limit).exec(),
+        this.savingsModel.countDocuments({ userId }).exec(),
+      ]);
+
+      return paginate(data, page, limit, total);
+    }
+
+    return query.exec();
   }
 
-  async getPayouts(groupId: string): Promise<Payout[]> {
-    return this.payoutModel.find({ groupId }).sort({ createdAt: -1 }).exec();
+  async getContributions(
+    groupId: string,
+    pagination?: PaginationDto,
+  ): Promise<PaginatedResult<Contribution> | Contribution[]> {
+    const query = this.contributionModel
+      .find({ groupId })
+      .sort({ createdAt: -1 });
+
+    if (pagination) {
+      const page = pagination.page || 1;
+      const limit = pagination.limit || 10;
+      const skip = (page - 1) * limit;
+
+      const [data, total] = await Promise.all([
+        query.skip(skip).limit(limit).exec(),
+        this.contributionModel.countDocuments({ groupId }).exec(),
+      ]);
+
+      return paginate(data, page, limit, total);
+    }
+
+    return query.exec();
+  }
+
+  async getPayouts(
+    groupId: string,
+    pagination?: PaginationDto,
+  ): Promise<PaginatedResult<Payout> | Payout[]> {
+    const query = this.payoutModel.find({ groupId }).sort({ createdAt: -1 });
+
+    if (pagination) {
+      const page = pagination.page || 1;
+      const limit = pagination.limit || 10;
+      const skip = (page - 1) * limit;
+
+      const [data, total] = await Promise.all([
+        query.skip(skip).limit(limit).exec(),
+        this.payoutModel.countDocuments({ groupId }).exec(),
+      ]);
+
+      return paginate(data, page, limit, total);
+    }
+
+    return query.exec();
   }
 }

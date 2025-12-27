@@ -1,9 +1,27 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  Request,
+  Query,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SendAnnouncementDto } from './dto/send-announcement.dto';
 import { GroupsService } from '../groups/groups.service';
+import { PaginationDto } from '../common/dto/pagination.dto';
+import { extractUserId } from '../common/utils/member.util';
 
 @ApiTags('notifications')
 @ApiBearerAuth()
@@ -18,8 +36,8 @@ export class NotificationsController {
   @Get()
   @ApiOperation({ summary: 'Get all notifications for current user' })
   @ApiResponse({ status: 200, description: 'Return all notifications' })
-  async findAll(@Request() req) {
-    return this.notificationsService.findAll(req.user.userId);
+  async findAll(@Request() req, @Query() pagination?: PaginationDto) {
+    return this.notificationsService.findAll(req.user.userId, pagination);
   }
 
   @Put(':id/read')
@@ -34,10 +52,11 @@ export class NotificationsController {
   @ApiResponse({ status: 201, description: 'Announcement sent to all members' })
   async sendAnnouncement(@Request() req, @Body() dto: SendAnnouncementDto) {
     const members = await this.groupsService.getGroupMembers(dto.groupId);
-    const memberUserIds = members.map(m => 
-      typeof m.userId === 'object' ? (m.userId as any)._id?.toString() : m.userId?.toString()
-    ).filter(Boolean);
-    
+    const membersArray = Array.isArray(members) ? members : members.data;
+    const memberUserIds = membersArray
+      .map((m) => extractUserId(m))
+      .filter(Boolean);
+
     await this.notificationsService.sendAnnouncementToGroup(
       dto.groupId,
       req.user.userId,
@@ -45,15 +64,21 @@ export class NotificationsController {
       dto.body,
       memberUserIds,
     );
-    
-    return { message: 'Announcement sent to all members', count: memberUserIds.length - 1 };
+
+    return {
+      message: 'Announcement sent to all members',
+      count: memberUserIds.length - 1,
+    };
   }
 
   @Get('announcements/:groupId')
   @ApiOperation({ summary: 'Get active announcements for a group' })
   @ApiResponse({ status: 200, description: 'Return active announcements' })
-  async getAnnouncements(@Param('groupId') groupId: string) {
-    return this.notificationsService.getGroupAnnouncements(groupId);
+  async getAnnouncements(
+    @Param('groupId') groupId: string,
+    @Query() pagination?: PaginationDto,
+  ) {
+    return this.notificationsService.getGroupAnnouncements(groupId, pagination);
   }
 
   @Put('announcement/:id')
@@ -63,7 +88,11 @@ export class NotificationsController {
     @Param('id') id: string,
     @Body() body: { title: string; body: string },
   ) {
-    return this.notificationsService.updateAnnouncement(id, body.title, body.body);
+    return this.notificationsService.updateAnnouncement(
+      id,
+      body.title,
+      body.body,
+    );
   }
 
   @Delete('announcement/:id')

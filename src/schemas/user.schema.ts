@@ -21,7 +21,10 @@ export class User extends Document {
   @Prop({ required: false })
   avatar: string;
 
-  @Prop({ required: false, enum: ['Male', 'Female', 'Other', 'Prefer not to say'] })
+  @Prop({
+    required: false,
+    enum: ['Male', 'Female', 'Other', 'Prefer not to say'],
+  })
   gender: string;
 
   @Prop({ required: false })

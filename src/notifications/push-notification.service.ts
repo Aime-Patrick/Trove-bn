@@ -24,7 +24,9 @@ export class PushNotificationService implements OnModuleInit {
           'base64',
         ).toString('utf-8');
         serviceAccount = JSON.parse(decoded);
-        this.logger.log('Firebase credentials loaded from environment variable.');
+        this.logger.log(
+          'Firebase credentials loaded from environment variable.',
+        );
       }
       // Option 2: Load from file (for local development)
       else {
@@ -58,10 +60,17 @@ export class PushNotificationService implements OnModuleInit {
     }
   }
 
-  async sendPushNotification(userId: string, title: string, body: string, data?: any) {
+  async sendPushNotification(
+    userId: string,
+    title: string,
+    body: string,
+    data?: any,
+  ) {
     const user = await this.userModel.findById(userId);
     if (!user || !user.deviceToken) {
-      this.logger.log(`User ${userId} has no device token. Skipping push notification.`);
+      this.logger.log(
+        `User ${userId} has no device token. Skipping push notification.`,
+      );
       return;
     }
 
@@ -74,12 +83,19 @@ export class PushNotificationService implements OnModuleInit {
         };
 
         const response = await admin.messaging().send(message);
-        this.logger.log(`Successfully sent push notification to ${userId}: ${response}`);
+        this.logger.log(
+          `Successfully sent push notification to ${userId}: ${response}`,
+        );
       } catch (error) {
-        this.logger.error(`Error sending push notification to ${userId}:`, error.message);
+        this.logger.error(
+          `Error sending push notification to ${userId}:`,
+          error.message,
+        );
       }
     } else {
-      this.logger.log(`[MOCK PUSH] To: ${userId} (${user.deviceToken}) | Title: ${title} | Body: ${body}`);
+      this.logger.log(
+        `[MOCK PUSH] To: ${userId} (${user.deviceToken}) | Title: ${title} | Body: ${body}`,
+      );
     }
   }
 

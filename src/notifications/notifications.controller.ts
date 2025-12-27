@@ -72,13 +72,15 @@ export class NotificationsController {
   }
 
   @Get('announcements/:groupId')
-  @ApiOperation({ summary: 'Get active announcements for a group' })
-  @ApiResponse({ status: 200, description: 'Return active announcements' })
+  @ApiOperation({ summary: 'Get announcements for a group' })
+  @ApiResponse({ status: 200, description: 'Return announcements' })
   async getAnnouncements(
     @Param('groupId') groupId: string,
     @Query() pagination?: PaginationDto,
+    @Query('includeExpired') includeExpired?: string,
   ) {
-    return this.notificationsService.getGroupAnnouncements(groupId, pagination);
+    const includeExpiredBool = includeExpired === 'true' || includeExpired === '1';
+    return this.notificationsService.getGroupAnnouncements(groupId, pagination, includeExpiredBool);
   }
 
   @Put('announcement/:id')

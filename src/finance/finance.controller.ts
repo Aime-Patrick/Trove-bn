@@ -7,6 +7,7 @@ import {
   Query,
   UseGuards,
   Request,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -17,7 +18,10 @@ import {
 import { FinanceService } from './finance.service';
 import { CreateContributionDto } from './dto/create-contribution.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { PaginationDto } from '../common/dto/pagination.dto';
+import {
+  GroupFilteredPaginationDto,
+  UserFilteredPaginationDto,
+} from '../common/dto/filtered-pagination.dto';
 
 @ApiTags('finance')
 @ApiBearerAuth()
@@ -28,11 +32,11 @@ export class FinanceController {
 
   @Get('contributions')
   @ApiOperation({ summary: 'Get contributions for a group' })
-  async getContributions(
-    @Query('groupId') groupId: string,
-    @Query() pagination?: PaginationDto,
-  ) {
-    return this.financeService.getContributions(groupId, pagination);
+  async getContributions(@Query() query: GroupFilteredPaginationDto) {
+    if (!query.groupId) {
+      throw new BadRequestException('groupId is required');
+    }
+    return this.financeService.getContributions(query.groupId, query);
   }
 
   @Post('contributions')
@@ -50,11 +54,11 @@ export class FinanceController {
 
   @Get('payouts')
   @ApiOperation({ summary: 'Get payouts for a group' })
-  async getPayouts(
-    @Query('groupId') groupId: string,
-    @Query() pagination?: PaginationDto,
-  ) {
-    return this.financeService.getPayouts(groupId, pagination);
+  async getPayouts(@Query() query: GroupFilteredPaginationDto) {
+    if (!query.groupId) {
+      throw new BadRequestException('groupId is required');
+    }
+    return this.financeService.getPayouts(query.groupId, query);
   }
 
   @Post('payouts/:id/approve')
@@ -93,7 +97,12 @@ export class FinanceController {
 
   @Get('savings')
   @ApiOperation({ summary: 'Get user savings' })
-  async getSavings(@Request() req: any, @Query() pagination?: PaginationDto) {
-    return this.financeService.getUserSavings(req.user.userId, pagination);
+  async getSavings(
+    @Request() req: any,
+    @Query() query: UserFilteredPaginationDto,
+  ) {
+    // Use userId from query if provided, otherwise use authenticated user's ID
+    const userId = query.userId || req.user.userId;
+    return this.financeService.getUserSavings(userId, query);
   }
 }

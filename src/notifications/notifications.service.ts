@@ -116,13 +116,23 @@ export class NotificationsService {
   async getGroupAnnouncements(
     groupId: string,
     pagination?: PaginationDto,
+    includeExpired: boolean = false,
   ): Promise<PaginatedResult<Announcement> | Announcement[]> {
     const now = new Date();
+    const queryFilter: any = { groupId };
+    
+    // Only filter by expiry if not including expired announcements
+    // $gt means "greater than" - so expiresAt > now means "not expired yet"
+    // An announcement with expiresAt: "2026-01-03" will show if now < "2026-01-03"
+    if (!includeExpired) {
+      queryFilter.expiresAt = { $gt: now };
+    }
+    
+    // Note: We don't filter by isActive here to allow admins to see all announcements
+    // The mobile app can filter by isActive on the client side if needed
+    
     const query = this.announcementModel
-      .find({
-        groupId,
-        expiresAt: { $gt: now },
-      })
+      .find(queryFilter)
       .sort({ createdAt: -1 });
 
     if (pagination) {
@@ -132,9 +142,7 @@ export class NotificationsService {
 
       const [data, total] = await Promise.all([
         query.skip(skip).limit(limit).exec(),
-        this.announcementModel
-          .countDocuments({ groupId, expiresAt: { $gt: now } })
-          .exec(),
+        this.announcementModel.countDocuments(queryFilter).exec(),
       ]);
 
       return paginate(data, page, limit, total);

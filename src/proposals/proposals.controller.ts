@@ -18,7 +18,8 @@ import { Request as ExpressRequest } from 'express';
 import { ProposalsService } from './proposals.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateProposalDto } from './dto/create-proposal.dto';
-import { PaginationDto } from '../common/dto/pagination.dto';
+import { ProposalFilteredPaginationDto } from '../common/dto/filtered-pagination.dto';
+import { BadRequestException } from '@nestjs/common';
 
 interface AuthenticatedRequest extends ExpressRequest {
   user: {
@@ -41,11 +42,11 @@ export class ProposalsController {
     status: 200,
     description: 'Return all proposals for the group',
   })
-  async findAll(
-    @Query('groupId') groupId: string,
-    @Query() pagination?: PaginationDto,
-  ) {
-    return this.proposalsService.findAll(groupId, pagination);
+  async findAll(@Query() query: ProposalFilteredPaginationDto) {
+    if (!query.groupId) {
+      throw new BadRequestException('groupId is required');
+    }
+    return this.proposalsService.findAll(query.groupId, query);
   }
 
   @Post()

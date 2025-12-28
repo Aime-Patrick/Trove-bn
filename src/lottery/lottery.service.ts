@@ -224,12 +224,14 @@ export class LotteryService {
       }
       const shuffled = pool.sort(() => Math.random() - 0.5);
 
-      // Broadcast "SPINNING" status with practice flag
+      // Broadcast "COUNTDOWN" status first
+      const countdownDuration = 5000;
       const practiceData = {
         groupId,
-        status: LotteryStatus.SPINNING,
+        status: LotteryStatus.COUNTDOWN,
         isPractice: true,
         payoutOrder: [],
+        countdownEnd: new Date(Date.now() + countdownDuration).toISOString(),
       };
       
       this.activePracticeSessions.set(groupId, practiceData);
@@ -263,11 +265,30 @@ export class LotteryService {
     currentRound: number,
   ): Promise<void> {
     try {
-      // Wait for 5 seconds
+      // Wait for countdown (5 seconds)
+      this.logger.log(`Starting countdown for group ${groupId}`);
       await new Promise((resolve) => setTimeout(resolve, 5000));
+      this.logger.log(`Countdown finished for group ${groupId}, broadcasting SPINNING`);
+
+      // Broadcast "SPINNING" status
+      const winnerId = shuffled[0];
+      const winningSlotIndex = shuffled.indexOf(winnerId);
+      const spinningData = {
+        groupId,
+        status: LotteryStatus.SPINNING,
+        isPractice: true,
+        payoutOrder: [],
+        winningSlotIndex,
+        selectedId: winnerId,
+      };
+      this.activePracticeSessions.set(groupId, spinningData);
+      this.lotteryGateway.broadcastLotteryUpdate(groupId, spinningData);
+
+      // Wait for spin animation (8 seconds)
+      await new Promise((resolve) => setTimeout(resolve, 8000));
 
       // Broadcast "PRACTICE" status with the full sequence
-      const winnerId = shuffled[0];
+      // winnerId is already defined above
       const winner = membersArray.find((m) => extractUserId(m) === winnerId);
 
       const practiceResult = {
@@ -277,10 +298,12 @@ export class LotteryService {
         payoutOrder: shuffled,
         selectedId: winnerId,
         selectedName: winner ? extractUserName(winner) : 'Member',
+        winningSlotIndex: shuffled.indexOf(winnerId), // Dynamic slot position
         round: currentRound,
       };
 
       this.activePracticeSessions.set(groupId, practiceResult);
+      this.logger.log(`Broadcasting PRACTICE result for group ${groupId}: Winner ${winnerId}`);
       this.lotteryGateway.broadcastLotteryUpdate(groupId, practiceResult);
     } catch (error) {
       this.logger.error(

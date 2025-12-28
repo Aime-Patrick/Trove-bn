@@ -4,6 +4,7 @@ import { Document, Schema as MongooseSchema } from 'mongoose';
 export enum LotteryStatus {
   CONFIRMING = 'confirming',
   SPINNING = 'spinning',
+  COUNTDOWN = 'countdown',
   COMPLETED = 'completed',
   PRACTICE = 'practice',
 }

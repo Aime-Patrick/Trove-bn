@@ -51,13 +51,13 @@ export class LotteryController {
 
   @Post('practice')
   @ApiOperation({ summary: 'Start a practice lottery round' })
-  async startPractice(@Body('groupId') groupId: string) {
-    return this.lotteryService.startPracticeSelection(groupId);
+  async startPractice(@Body() startLotteryDto: StartLotteryDto) {
+    return this.lotteryService.startPracticeSelection(startLotteryDto.groupId);
   }
 
   @Post('reset-practice')
   @ApiOperation({ summary: 'Reset the practice lottery state' })
-  async resetPractice(@Body('groupId') groupId: string) {
-    return this.lotteryService.resetPractice(groupId);
+  async resetPractice(@Body() startLotteryDto: StartLotteryDto) {
+    return this.lotteryService.resetPractice(startLotteryDto.groupId);
   }
 }

@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User } from '../schemas/user.schema';
 import * as admin from 'firebase-admin';
+import { Expo, ExpoPushMessage } from 'expo-server-sdk';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -10,6 +11,7 @@ import * as fs from 'fs';
 export class PushNotificationService implements OnModuleInit {
   private readonly logger = new Logger(PushNotificationService.name);
   private isInitialized = false;
+  private expo = new Expo();
 
   constructor(@InjectModel(User.name) private userModel: Model<User>) {}
 
@@ -74,6 +76,11 @@ export class PushNotificationService implements OnModuleInit {
       return;
     }
 
+    if (user.deviceToken.startsWith('ExponentPushToken') || user.deviceToken.startsWith('ExpoPushToken')) {
+      await this.sendExpoPushNotification(userId, user.deviceToken, title, body, data);
+      return;
+    }
+
     if (this.isInitialized) {
       try {
         const message = {
@@ -91,11 +98,54 @@ export class PushNotificationService implements OnModuleInit {
           `Error sending push notification to ${userId}:`,
           error.message,
         );
+
+        // If the token is invalid or not found, clear it from the user record
+        if (
+          error.code === 'messaging/registration-token-not-registered' ||
+          error.message?.includes('Requested entity was not found') ||
+          error.message?.includes('invalid-registration-token')
+        ) {
+          this.logger.warn(`Clearing invalid device token for user ${userId}`);
+          await this.userModel.findByIdAndUpdate(userId, {
+            $unset: { deviceToken: 1 },
+          });
+        }
       }
     } else {
       this.logger.log(
         `[MOCK PUSH] To: ${userId} (${user.deviceToken}) | Title: ${title} | Body: ${body}`,
       );
+    }
+  }
+
+  private async sendExpoPushNotification(
+    userId: string,
+    token: string,
+    title: string,
+    body: string,
+    data?: any,
+  ) {
+    if (!Expo.isExpoPushToken(token)) {
+      this.logger.error(`Push token ${token} is not a valid Expo push token`);
+      return;
+    }
+
+    const message: ExpoPushMessage = {
+      to: token,
+      sound: 'default',
+      title,
+      body,
+      data: data || {},
+      channelId: 'default',
+    };
+
+    try {
+      const tickets = await this.expo.sendPushNotificationsAsync([message]);
+      this.logger.log(`Expo push notification sent to ${userId}: ${JSON.stringify(tickets)}`);
+      
+      // NOTE: In a production app, you should check tickets for errors and handle them
+    } catch (error) {
+      this.logger.error(`Error sending Expo push notification to ${userId}:`, error.message);
     }
   }
 

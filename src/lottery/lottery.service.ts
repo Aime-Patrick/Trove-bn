@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Lottery, LotteryStatus } from '../schemas/lottery.schema';
@@ -9,6 +9,10 @@ import { extractUserId, extractUserName } from '../common/utils/member.util';
 
 @Injectable()
 export class LotteryService {
+  private readonly logger = new Logger(LotteryService.name);
+
+  private activePracticeSessions = new Map<string, any>();
+
   constructor(
     @InjectModel(Lottery.name) private lotteryModel: Model<Lottery>,
     private groupsService: GroupsService,
@@ -87,12 +91,12 @@ export class LotteryService {
       groupId,
       status: LotteryStatus.CONFIRMING,
     });
+    const group = await this.groupsService.findById(groupId);
     if (!lottery) throw new BadRequestException('No active confirmation phase');
     if (lottery.confirmedMembers.length === 0)
       throw new BadRequestException('No members confirmed');
 
-    // Shuffle all confirmed members immediately to determine the full sequence
-    // We create a pool where each member appears once for every slot they own
+    // Determine the full sequence immediately
     const members = await this.groupsService.getGroupMembers(groupId);
     const membersArray = Array.isArray(members) ? members : members.data;
     const pool: string[] = [];
@@ -105,98 +109,190 @@ export class LotteryService {
     }
     const shuffled = pool.sort(() => Math.random() - 0.5);
 
+    // Update status to SPINNING and save immediately
     lottery.status = LotteryStatus.SPINNING;
     lottery.payoutOrder = []; // Keep it empty during spinning for suspense
     await lottery.save();
 
-    // Notify all members that selection is starting
-    const group = await this.groupsService.findById(groupId);
-    for (const member of membersArray) {
+    // Notify all members that selection is starting (non-blocking)
+    membersArray.forEach((member) => {
       const memberId = extractUserId(member);
       if (memberId) {
-        await this.notificationsService.create(
+        this.notificationsService.create(
           memberId,
           'Selection Starting! 🎰',
           `The lottery selection for "${group.name}" is starting now. Watch the results live!`,
           'lottery_start',
           groupId,
           'trove://lottery',
-        );
+        ).catch(err => this.logger.error(`Failed to send selection notification to ${memberId}:`, err));
       }
-    }
+    });
 
     // Broadcast "SPINNING" status to all clients
     this.lotteryGateway.broadcastLotteryUpdate(groupId, lottery);
 
-    // Wait for 5 seconds to allow frontend animations to play
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-
-    // Set final sequence and complete the lottery
-    lottery.payoutOrder = shuffled;
-    lottery.status = LotteryStatus.COMPLETED;
-    // Set the first person in the sequence as the "selectedId" for UI highlights
-    lottery.selectedId = shuffled[0];
-    const winner = membersArray.find(
-      (m) => extractUserId(m) === lottery.selectedId,
+    // Trigger completion in the background (non-blocking)
+    this.completeSelection(groupId, (lottery._id as any).toString(), shuffled, membersArray).catch(
+      (err) =>
+        this.logger.error(
+          `Background completion failed for group ${groupId}:`,
+          err,
+        ),
     );
-    lottery.selectedName = winner ? extractUserName(winner) : 'Member';
 
-    await lottery.save();
-
-    // Broadcast the final "COMPLETED" status with the full sequence
-    this.lotteryGateway.broadcastLotteryUpdate(groupId, lottery);
-
+    // Return immediately to avoid 503 timeouts
     return lottery;
   }
 
-  async startPracticeSelection(groupId: string): Promise<void> {
-    const group = await this.groupsService.findById(groupId);
-    const members = await this.groupsService.getGroupMembers(groupId);
-    const membersArray = Array.isArray(members) ? members : members.data;
+  private async completeSelection(
+    groupId: string,
+    lotteryId: string,
+    shuffled: string[],
+    membersArray: any[],
+  ): Promise<void> {
+    try {
+      // Wait for 5 seconds to allow frontend animations to play
+      await new Promise((resolve) => setTimeout(resolve, 5000));
 
-    // Shuffle all members for the practice round
-    // We create a pool where each member appears once for every slot they own
-    const pool: string[] = [];
-    for (const member of membersArray) {
-      const userId = extractUserId(member);
-      if (userId) {
-        const slots = member.slots || 1;
-        for (let i = 0; i < slots; i++) {
-          pool.push(userId);
+      const lottery = await this.lotteryModel.findById(lotteryId);
+      if (!lottery) {
+        this.logger.error(`Lottery ${lotteryId} not found for completion`);
+        return;
+      }
+
+      // Set final sequence and complete the lottery
+      lottery.payoutOrder = shuffled;
+      lottery.status = LotteryStatus.COMPLETED;
+      // Set the first person in the sequence as the "selectedId" for UI highlights
+      lottery.selectedId = shuffled[0];
+      const winner = membersArray.find(
+        (m) => extractUserId(m) === lottery.selectedId,
+      );
+      lottery.selectedName = winner ? extractUserName(winner) : 'Member';
+
+      await lottery.save();
+
+      // Broadcast the final "COMPLETED" status with the full sequence
+      this.lotteryGateway.broadcastLotteryUpdate(groupId, lottery);
+    } catch (error) {
+      this.logger.error(
+        `Error in background completeSelection for group ${groupId}:`,
+        error,
+      );
+    }
+  }
+
+  async startPracticeSelection(groupId: string): Promise<void> {
+    try {
+      const group = await this.groupsService.findById(groupId);
+      const members = await this.groupsService.getGroupMembers(groupId);
+      const membersArray = Array.isArray(members) ? members : members.data;
+
+      if (!membersArray || membersArray.length === 0) {
+        this.logger.warn(
+          `No members found for group ${groupId} to start practice.`,
+        );
+        return;
+      }
+
+      // Notify all members that practice mode is starting (non-blocking)
+      membersArray.forEach((member) => {
+        const memberId = extractUserId(member);
+        if (memberId) {
+          this.notificationsService.create(
+            memberId,
+            'Practice Mode Started! 🧪',
+            `A practice lottery round for "${group.name}" has started. Watch how the selection works!`,
+            'lottery_practice',
+            groupId,
+            'trove://lottery',
+          ).catch(err => this.logger.error(`Failed to send practice notification to ${memberId}:`, err));
+        }
+      });
+
+      // Shuffle all members for the practice round
+      const pool: string[] = [];
+      for (const member of membersArray) {
+        const userId = extractUserId(member);
+        if (userId) {
+          const slots = member.slots || 1;
+          for (let i = 0; i < slots; i++) {
+            pool.push(userId);
+          }
         }
       }
+      const shuffled = pool.sort(() => Math.random() - 0.5);
+
+      // Broadcast "SPINNING" status with practice flag
+      const practiceData = {
+        groupId,
+        status: LotteryStatus.SPINNING,
+        isPractice: true,
+        payoutOrder: [],
+      };
+      
+      this.activePracticeSessions.set(groupId, practiceData);
+      this.lotteryGateway.broadcastLotteryUpdate(groupId, practiceData);
+
+      // Trigger completion in the background (non-blocking)
+      this.completePracticeSelection(
+        groupId,
+        shuffled,
+        membersArray,
+        group.currentRound,
+      ).catch((err) =>
+        this.logger.error(
+          `Background practice completion failed for group ${groupId}:`,
+          err,
+        ),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Error in startPracticeSelection for group ${groupId}:`,
+        error,
+      );
+      throw error;
     }
-    const shuffled = pool.sort(() => Math.random() - 0.5);
+  }
 
-    // Broadcast "SPINNING" status with practice flag
-    this.lotteryGateway.broadcastLotteryUpdate(groupId, {
-      groupId,
-      status: LotteryStatus.SPINNING,
-      isPractice: true,
-      payoutOrder: [],
-    });
+  private async completePracticeSelection(
+    groupId: string,
+    shuffled: string[],
+    membersArray: any[],
+    currentRound: number,
+  ): Promise<void> {
+    try {
+      // Wait for 5 seconds
+      await new Promise((resolve) => setTimeout(resolve, 5000));
 
-    // Wait for 5 seconds
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+      // Broadcast "PRACTICE" status with the full sequence
+      const winnerId = shuffled[0];
+      const winner = membersArray.find((m) => extractUserId(m) === winnerId);
 
-    // Broadcast "PRACTICE" status with the full sequence
-    // We use a custom status or flag to indicate this is a practice result
-    const winnerId = shuffled[0];
-    const winner = membersArray.find((m) => extractUserId(m) === winnerId);
+      const practiceResult = {
+        groupId,
+        status: LotteryStatus.PRACTICE,
+        isPractice: true,
+        payoutOrder: shuffled,
+        selectedId: winnerId,
+        selectedName: winner ? extractUserName(winner) : 'Member',
+        round: currentRound,
+      };
 
-    this.lotteryGateway.broadcastLotteryUpdate(groupId, {
-      groupId,
-      status: LotteryStatus.PRACTICE,
-      isPractice: true,
-      payoutOrder: shuffled,
-      selectedId: winnerId,
-      selectedName: winner ? extractUserName(winner) : 'Member',
-      round: group.currentRound,
-    });
+      this.activePracticeSessions.set(groupId, practiceResult);
+      this.lotteryGateway.broadcastLotteryUpdate(groupId, practiceResult);
+    } catch (error) {
+      this.logger.error(
+        `Error in background completePracticeSelection for group ${groupId}:`,
+        error,
+      );
+    }
   }
 
   async resetPractice(groupId: string): Promise<void> {
     // Just broadcast a reset signal to all clients in the group
+    this.activePracticeSessions.delete(groupId);
     this.lotteryGateway.broadcastLotteryUpdate(groupId, {
       groupId,
       status: LotteryStatus.CONFIRMING,
@@ -206,7 +302,12 @@ export class LotteryService {
     });
   }
 
-  async getStatus(groupId: string): Promise<Lottery | null> {
+  async getStatus(groupId: string): Promise<any | null> {
+    // Check if there's an active practice session first
+    if (this.activePracticeSessions.has(groupId)) {
+      return this.activePracticeSessions.get(groupId);
+    }
+
     return this.lotteryModel
       .findOne({ groupId })
       .sort({ createdAt: -1 })

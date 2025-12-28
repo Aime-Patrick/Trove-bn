@@ -29,4 +29,11 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   deviceToken?: string;
+  @ApiPropertyOptional({
+    example: 'ExponentPushToken[xxx]',
+    description: 'Expo push notification token',
+  })
+  @IsOptional()
+  @IsString()
+  expoPushToken?: string;
 }

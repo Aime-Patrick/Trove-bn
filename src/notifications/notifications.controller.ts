@@ -21,6 +21,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SendAnnouncementDto } from './dto/send-announcement.dto';
 import { GroupsService } from '../groups/groups.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
+import { AnnouncementPaginationDto } from '../common/dto/filtered-pagination.dto';
 import { extractUserId } from '../common/utils/member.util';
 
 @ApiTags('notifications')
@@ -76,10 +77,9 @@ export class NotificationsController {
   @ApiResponse({ status: 200, description: 'Return announcements' })
   async getAnnouncements(
     @Param('groupId') groupId: string,
-    @Query() pagination?: PaginationDto,
-    @Query('includeExpired') includeExpired?: string,
+    @Query() pagination?: AnnouncementPaginationDto,
   ) {
-    const includeExpiredBool = includeExpired === 'true' || includeExpired === '1';
+    const includeExpiredBool = pagination?.includeExpired === 'true' || pagination?.includeExpired === '1';
     return this.notificationsService.getGroupAnnouncements(groupId, pagination, includeExpiredBool);
   }
 

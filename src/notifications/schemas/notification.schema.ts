@@ -9,6 +9,10 @@ export enum NotificationType {
   ALERT = 'alert',
   ANNOUNCEMENT = 'announcement',
   LOTTERY_JOIN = 'lottery_join',
+  LOTTERY_OPEN = 'lottery_open',
+  LOTTERY_START = 'lottery_start',
+  LOTTERY_PRACTICE = 'lottery_practice',
+  LOTTERY_SCHEDULED = 'lottery_scheduled',
 }
 
 @Schema({ timestamps: true })

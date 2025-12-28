@@ -126,4 +126,99 @@ export class AuthService {
       },
     };
   }
+
+  /**
+   * Biometric login - allows login without OTP when biometrics are verified on device
+   * Note: Biometric verification happens on the client device, this endpoint trusts that
+   * verification. For production, consider adding additional security measures like
+   * device fingerprinting or rate limiting.
+   * 
+   * This method uses the same registration/login logic as verifyOtp but skips OTP validation.
+   */
+  async biometricLogin(
+    phoneNumber: string,
+    intent?: string,
+    inviteCode?: string,
+  ): Promise<{ token: string; user: any }> {
+    let user = await this.usersService.findByPhone(phoneNumber);
+
+    if (!user) {
+      // New User Registration Logic (same as verifyOtp)
+      if (intent === 'create') {
+        user = await this.usersService.create({
+          phoneNumber,
+          name: 'New Admin',
+          role: UserRole.MEMBER, // Will be upgraded to GROUP_ADMIN when they create a group
+        });
+      } else if (intent === 'join') {
+        // Strict Member Onboarding
+        if (!inviteCode) {
+          throw new UnauthorizedException('Invite code is required to join.');
+        }
+
+        // Validate Invite
+        const invite = await this.invitesService.validateInvite(
+          phoneNumber,
+          inviteCode,
+        );
+
+        // Create User
+        user = await this.usersService.create({
+          phoneNumber,
+          name: 'New Member',
+          role: UserRole.MEMBER,
+        });
+
+        // Auto-join Group
+        await this.groupsService.joinGroup(user._id.toString(), invite.groupId);
+
+        // Mark invite as accepted
+        await this.invitesService.acceptInvite((invite as any)._id.toString());
+      } else {
+        throw new UnauthorizedException(
+          'You must be invited to join or create a new group.',
+        );
+      }
+    } else {
+      // Existing User Logic (same as verifyOtp)
+      if (intent === 'join' && inviteCode) {
+        try {
+          const invite = await this.invitesService.validateInvite(
+            phoneNumber,
+            inviteCode,
+          );
+          await this.groupsService.joinGroup(
+            user._id.toString(),
+            invite.groupId,
+          );
+          await this.invitesService.acceptInvite(
+            (invite as any)._id.toString(),
+          );
+        } catch (e) {
+          throw e;
+        }
+      }
+    }
+
+    // Generate JWT token (same as verifyOtp)
+    const payload = {
+      sub: user._id,
+      phoneNumber: user.phoneNumber,
+      role: user.role,
+    };
+    const token = this.jwtService.sign(payload);
+
+    return {
+      token,
+      user: {
+        id: user._id.toString(),
+        phoneNumber: user.phoneNumber,
+        name: user.name,
+        role: user.role,
+        avatar: user.avatar,
+        gender: user.gender,
+        createdAt: (user as any).createdAt,
+      },
+    };
+  }
 }

@@ -20,9 +20,14 @@ export class UsersService {
     return this.userModel.findById(id).exec();
   }
 
-  async update(id: string, updateData: Partial<User>): Promise<User | null> {
+  async update(id: string, updateData: any): Promise<User | null> {
+    const data = { ...updateData };
+    if (data.expoPushToken) {
+      data.deviceToken = data.expoPushToken;
+      delete data.expoPushToken;
+    }
     return this.userModel
-      .findByIdAndUpdate(id, updateData, { new: true })
+      .findByIdAndUpdate(id, data, { new: true })
       .exec();
   }
 }

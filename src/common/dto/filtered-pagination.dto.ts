@@ -43,3 +43,16 @@ export class ProposalFilteredPaginationDto extends PaginationDto {
   groupId?: string;
 }
 
+/**
+ * Pagination DTO with optional includeExpired filter for announcements
+ */
+export class AnnouncementPaginationDto extends PaginationDto {
+  @ApiPropertyOptional({
+    example: 'true',
+    description: 'Include expired announcements',
+  })
+  @IsOptional()
+  @IsString()
+  includeExpired?: string;
+}
+

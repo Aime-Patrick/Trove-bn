@@ -109,9 +109,10 @@ export class LotteryService {
     }
     const shuffled = pool.sort(() => Math.random() - 0.5);
 
-    // Update status to SPINNING and save immediately
-    lottery.status = LotteryStatus.SPINNING;
-    lottery.payoutOrder = []; // Keep it empty during spinning for suspense
+    // Update status to COUNTDOWN and save immediately
+    const countdownDuration = 5000;
+    lottery.status = LotteryStatus.COUNTDOWN;
+    lottery.payoutOrder = []; // Keep it empty during countdown for suspense
     await lottery.save();
 
     // Notify all members that selection is starting (non-blocking)
@@ -121,7 +122,7 @@ export class LotteryService {
         this.notificationsService.create(
           memberId,
           'Selection Starting! 🎰',
-          `The lottery selection for "${group.name}" is starting now. Watch the results live!`,
+          `The lottery selection for "${group.name}" is starting now. Watch the countdown!`,
           'lottery_start',
           groupId,
           'trove://lottery',
@@ -129,8 +130,12 @@ export class LotteryService {
       }
     });
 
-    // Broadcast "SPINNING" status to all clients
-    this.lotteryGateway.broadcastLotteryUpdate(groupId, lottery);
+    // Broadcast "COUNTDOWN" status to all clients
+    this.logger.log(`Broadcasting COUNTDOWN for lottery ${lottery._id}`);
+    this.lotteryGateway.broadcastLotteryUpdate(groupId, {
+      ...lottery.toObject(),
+      countdownEnd: new Date(Date.now() + countdownDuration).toISOString(),
+    });
 
     // Trigger completion in the background (non-blocking)
     this.completeSelection(groupId, (lottery._id as any).toString(), shuffled, membersArray).catch(
@@ -152,8 +157,10 @@ export class LotteryService {
     membersArray: any[],
   ): Promise<void> {
     try {
-      // Wait for 5 seconds to allow frontend animations to play
+      // Phase 1: Wait for countdown (5 seconds)
+      this.logger.log(`Starting countdown for lottery ${lotteryId}`);
       await new Promise((resolve) => setTimeout(resolve, 5000));
+      this.logger.log(`Countdown finished for lottery ${lotteryId}, broadcasting SPINNING`);
 
       const lottery = await this.lotteryModel.findById(lotteryId);
       if (!lottery) {
@@ -161,19 +168,27 @@ export class LotteryService {
         return;
       }
 
-      // Set final sequence and complete the lottery
+      // Phase 2: Broadcast SPINNING status
+      const winnerId = shuffled[0];
+      lottery.status = LotteryStatus.SPINNING;
+      lottery.selectedId = winnerId;
+      const winner = membersArray.find((m) => extractUserId(m) === winnerId);
+      lottery.selectedName = winner ? extractUserName(winner) : 'Member';
+      
+      await lottery.save();
+      this.lotteryGateway.broadcastLotteryUpdate(groupId, lottery);
+
+      // Wait for spin animation (8 seconds)
+      await new Promise((resolve) => setTimeout(resolve, 8000));
+
+      // Phase 3: Set final sequence and complete the lottery
       lottery.payoutOrder = shuffled;
       lottery.status = LotteryStatus.COMPLETED;
-      // Set the first person in the sequence as the "selectedId" for UI highlights
-      lottery.selectedId = shuffled[0];
-      const winner = membersArray.find(
-        (m) => extractUserId(m) === lottery.selectedId,
-      );
-      lottery.selectedName = winner ? extractUserName(winner) : 'Member';
 
       await lottery.save();
 
       // Broadcast the final "COMPLETED" status with the full sequence
+      this.logger.log(`Broadcasting COMPLETED result for lottery ${lotteryId}: Winner ${winnerId}`);
       this.lotteryGateway.broadcastLotteryUpdate(groupId, lottery);
     } catch (error) {
       this.logger.error(

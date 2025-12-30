@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ProposalsService } from './proposals.service';
 import { ProposalsController } from './proposals.controller';
@@ -11,8 +11,8 @@ import { GroupsModule } from '../groups/groups.module';
     MongooseModule.forFeature([
       { name: Proposal.name, schema: ProposalSchema },
     ]),
-    NotificationsModule,
-    GroupsModule,
+    forwardRef(() => NotificationsModule),
+    forwardRef(() => GroupsModule),
   ],
   controllers: [ProposalsController],
   providers: [ProposalsService],

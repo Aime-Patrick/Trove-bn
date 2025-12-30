@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { LotteryService } from './lottery.service';
 import { LotteryController } from './lottery.controller';
@@ -11,8 +11,8 @@ import { LotteryAutomationService } from './lottery-automation.service';
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Lottery.name, schema: LotterySchema }]),
-    GroupsModule,
-    NotificationsModule,
+    forwardRef(() => GroupsModule),
+    forwardRef(() => NotificationsModule),
   ],
   providers: [LotteryService, LotteryGateway, LotteryAutomationService],
   controllers: [LotteryController],

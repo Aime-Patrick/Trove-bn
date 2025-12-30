@@ -17,7 +17,7 @@ import { LotteryModule } from '../lottery/lottery.module';
     ]),
     InvitesModule,
     UsersModule,
-    NotificationsModule,
+    forwardRef(() => NotificationsModule),
     forwardRef(() => LotteryModule),
   ],
   providers: [GroupsService],

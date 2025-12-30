@@ -156,9 +156,13 @@ export class ProposalsService {
             typeof data.slotPrice === 'number' &&
             data.slotPrice > 0
           ) {
-            await this.groupsService.updateGroup(groupId, {
-              slotPrice: data.slotPrice,
-            });
+            await this.groupsService.updateGroup(
+              groupId,
+              {
+                slotPrice: data.slotPrice,
+              },
+              false,
+            );
             this.logger.log(
               `Proposal ${proposalId}: Updated slot price to ${data.slotPrice}`,
             );
@@ -175,9 +179,13 @@ export class ProposalsService {
             typeof data.payoutFrequency === 'number' &&
             data.payoutFrequency > 0
           ) {
-            await this.groupsService.updateGroup(groupId, {
-              payoutFrequency: data.payoutFrequency,
-            });
+            await this.groupsService.updateGroup(
+              groupId,
+              {
+                payoutFrequency: data.payoutFrequency,
+              },
+              false,
+            );
             this.logger.log(
               `Proposal ${proposalId}: Updated payout frequency to ${data.payoutFrequency}`,
             );
@@ -195,9 +203,13 @@ export class ProposalsService {
             data.savingsPercentage >= 0 &&
             data.savingsPercentage <= 100
           ) {
-            await this.groupsService.updateGroup(groupId, {
-              savingsPercentage: data.savingsPercentage,
-            });
+            await this.groupsService.updateGroup(
+              groupId,
+              {
+                savingsPercentage: data.savingsPercentage,
+              },
+              false,
+            );
             this.logger.log(
               `Proposal ${proposalId}: Updated savings percentage to ${data.savingsPercentage}%`,
             );

@@ -318,7 +318,11 @@ export class GroupsService {
     return group;
   }
 
-  async updateGroup(id: string, updateData: Partial<Group>): Promise<Group> {
+  async updateGroup(
+    id: string,
+    updateData: Partial<Group>,
+    notify = true,
+  ): Promise<Group> {
     const group = await this.groupModel
       .findByIdAndUpdate(id, updateData, { new: true })
       .exec();
@@ -326,20 +330,22 @@ export class GroupsService {
 
     this.lotteryGateway.broadcastGroupUpdate(id, group);
 
-    // Notify all members
-    const members = await this.getGroupMembers(id);
-    const membersArray = Array.isArray(members) ? members : members.data;
-    for (const member of membersArray) {
-      const memberId = extractUserId(member);
-      if (memberId) {
-        await this.notificationsService.create(
-          memberId,
-          'Group Updated',
-          `The group "${group.name}" has been updated by the admin.`,
-          'group_updated',
-          id,
-          'trove://group-details',
-        );
+    // Notify all members if requested
+    if (notify) {
+      const members = await this.getGroupMembers(id);
+      const membersArray = Array.isArray(members) ? members : members.data;
+      for (const member of membersArray) {
+        const memberId = extractUserId(member);
+        if (memberId) {
+          await this.notificationsService.create(
+            memberId,
+            'Group Updated',
+            `The group "${group.name}" has been updated by the admin.`,
+            'group_updated',
+            id,
+            'trove://group-details',
+          );
+        }
       }
     }
 

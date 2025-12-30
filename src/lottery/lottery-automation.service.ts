@@ -47,9 +47,13 @@ export class LotteryAutomationService {
             );
 
             // Clear the scheduled time to prevent re-triggering
-            await this.groupsService.updateGroup(groupId, {
-              nextLotteryAt: undefined,
-            });
+            await this.groupsService.updateGroup(
+              groupId,
+              {
+                nextLotteryAt: undefined,
+              },
+              false,
+            );
 
             // Start the selection process
             await this.lotteryService.startSelection(groupId);
@@ -69,9 +73,13 @@ export class LotteryAutomationService {
           }
         } else {
           // No confirmation phase active, clear the scheduled time
-          await this.groupsService.updateGroup(groupId, {
-            nextLotteryAt: undefined,
-          });
+          await this.groupsService.updateGroup(
+            groupId,
+            {
+              nextLotteryAt: undefined,
+            },
+            false,
+          );
           this.logger.warn(
             `Scheduled lottery for group ${group.name} cleared: no active confirmation phase found.`,
           );

@@ -5,6 +5,8 @@ export type NotificationDocument = Notification & Document;
 
 export enum NotificationType {
   PROPOSAL = 'proposal',
+  PROPOSAL_APPROVED = 'proposal_approved',
+  PROPOSAL_REJECTED = 'proposal_rejected',
   INFO = 'info',
   ALERT = 'alert',
   ANNOUNCEMENT = 'announcement',
@@ -13,6 +15,15 @@ export enum NotificationType {
   LOTTERY_START = 'lottery_start',
   LOTTERY_PRACTICE = 'lottery_practice',
   LOTTERY_SCHEDULED = 'lottery_scheduled',
+  LOTTERY_SKIPPED = 'lottery_skipped',
+  MEMBER_JOINED = 'member_joined',
+  GROUP_UPDATED = 'group_updated',
+  CONTRIBUTION_RECEIVED = 'contribution_received',
+  CONTRIBUTION_RECORDED = 'contribution_recorded',
+  PAYOUT_READY = 'payout_ready',
+  PAYOUT_COMPLETED = 'payout_completed',
+  PAYOUT_SELECTED = 'payout_selected',
+  INVITE_ACCEPTED = 'invite_accepted',
 }
 
 @Schema({ timestamps: true })

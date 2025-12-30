@@ -42,6 +42,18 @@ export class LotteryGateway
     }
   }
 
+  broadcastMemberJoined(groupId: string, member: any) {
+    if (this.server) {
+      this.server.to(groupId).emit('memberJoined', member);
+    }
+  }
+
+  broadcastGroupUpdate(groupId: string, group: any) {
+    if (this.server) {
+      this.server.to(groupId).emit('groupUpdate', group);
+    }
+  }
+
   @SubscribeMessage('message')
   handleMessage(client: Socket, payload: unknown): string {
     return 'Hello world!';

@@ -54,7 +54,15 @@ export class LotteryAutomationService {
             // Start the selection process
             await this.lotteryService.startSelection(groupId);
           } else {
-            // Not enough members, we'll just log it.
+            // Not enough members, notify the admin
+            await this.notificationsService.create(
+              group.adminId,
+              'Lottery Skipped',
+              `The scheduled lottery for "${group.name}" was skipped because only ${lottery.confirmedMembers.length} members confirmed (minimum 3 required).`,
+              'lottery_skipped',
+              groupId,
+              'trove://lottery',
+            );
             this.logger.warn(
               `Scheduled lottery for group ${group.name} skipped: only ${lottery.confirmedMembers.length} members confirmed (minimum 3 required).`,
             );

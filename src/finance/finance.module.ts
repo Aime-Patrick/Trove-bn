@@ -9,6 +9,8 @@ import {
 import { Payout, PayoutSchema } from '../schemas/payout.schema';
 import { Savings, SavingsSchema } from '../schemas/savings.schema';
 import { GroupsModule } from '../groups/groups.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -18,6 +20,8 @@ import { GroupsModule } from '../groups/groups.module';
       { name: Savings.name, schema: SavingsSchema },
     ]),
     GroupsModule,
+    NotificationsModule,
+    UsersModule,
   ],
   providers: [FinanceService],
   controllers: [FinanceController],

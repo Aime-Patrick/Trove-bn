@@ -168,6 +168,8 @@ export class LotteryService {
         return;
       }
 
+      const group = await this.groupsService.findById(groupId);
+
       // Phase 2: Broadcast SPINNING status
       const winnerId = shuffled[0];
       lottery.status = LotteryStatus.SPINNING;
@@ -188,8 +190,37 @@ export class LotteryService {
       await lottery.save();
 
       // Broadcast the final "COMPLETED" status with the full sequence
-      this.logger.log(`Broadcasting COMPLETED result for lottery ${lotteryId}: Winner ${winnerId}`);
+      this.logger.log(`Broadcasting COMPLETED result for lottery ${lotteryId}: Selected ${winnerId}`);
       this.lotteryGateway.broadcastLotteryUpdate(groupId, lottery);
+
+      // Notify the selected member
+      await this.notificationsService.create(
+        winnerId,
+        'Payout Selected! 🎊',
+        `You have been selected for this round's payout in "${group.name}".`,
+        'payout_selected',
+        groupId,
+        'trove://finance',
+      );
+
+      // Notify the group
+      const members = await this.groupsService.getGroupMembers(groupId);
+      const currentMembersArray = Array.isArray(members) ? members : members.data;
+      const selectedUserName = winner ? extractUserName(winner) : 'A member';
+
+      for (const member of currentMembersArray) {
+        const memberId = extractUserId(member);
+        if (memberId && memberId !== winnerId) {
+          await this.notificationsService.create(
+            memberId,
+            'Round Completed',
+            `${selectedUserName} has been selected for this round's payout in "${group.name}".`,
+            'payout_completed',
+            groupId,
+            'trove://finance',
+          );
+        }
+      }
     } catch (error) {
       this.logger.error(
         `Error in background completeSelection for group ${groupId}:`,
@@ -318,7 +349,7 @@ export class LotteryService {
       };
 
       this.activePracticeSessions.set(groupId, practiceResult);
-      this.logger.log(`Broadcasting PRACTICE result for group ${groupId}: Winner ${winnerId}`);
+      this.logger.log(`Broadcasting PRACTICE result for group ${groupId}: Selected ${winnerId}`);
       this.lotteryGateway.broadcastLotteryUpdate(groupId, practiceResult);
     } catch (error) {
       this.logger.error(

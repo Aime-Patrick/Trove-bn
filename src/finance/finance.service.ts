@@ -8,6 +8,8 @@ import {
 import { Payout, PayoutStatus } from '../schemas/payout.schema';
 import { Savings } from '../schemas/savings.schema';
 import { GroupsService } from '../groups/groups.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { UsersService } from '../users/users.service';
 import {
   PaginationDto,
   PaginatedResult,
@@ -22,6 +24,8 @@ export class FinanceService {
     @InjectModel(Payout.name) private payoutModel: Model<Payout>,
     @InjectModel(Savings.name) private savingsModel: Model<Savings>,
     private groupsService: GroupsService,
+    private notificationsService: NotificationsService,
+    private usersService: UsersService,
   ) {}
 
   async logContribution(
@@ -36,7 +40,23 @@ export class FinanceService {
       status: ContributionStatus.PAID,
       paidDate: new Date(),
     });
-    return contribution.save();
+    const savedContribution = await contribution.save();
+
+    // Notify Admin
+    const group = await this.groupsService.findById(groupId);
+    const user = await this.usersService.findById(userId);
+    const userName = user?.name || 'A member';
+
+    await this.notificationsService.create(
+      group.adminId,
+      'Contribution Received',
+      `${userName} has contributed ${amount} to "${group.name}".`,
+      'contribution_received',
+      groupId,
+      'trove://group-details',
+    );
+
+    return savedContribution;
   }
 
   async recordManualContribution(
@@ -54,7 +74,20 @@ export class FinanceService {
       recordedBy: adminId,
       isManual: true,
     });
-    return contribution.save();
+    const savedContribution = await contribution.save();
+
+    // Notify User
+    const group = await this.groupsService.findById(groupId);
+    await this.notificationsService.create(
+      userId,
+      'Contribution Recorded',
+      `An admin has recorded a contribution of ${amount} for you in "${group.name}".`,
+      'contribution_recorded',
+      groupId,
+      'trove://group-details',
+    );
+
+    return savedContribution;
   }
 
   async approvePayout(adminId: string, payoutId: string): Promise<Payout> {
@@ -73,7 +106,7 @@ export class FinanceService {
     payout.approvedBy = adminId;
     payout.approvedAt = new Date();
     payout.paidAt = new Date();
-    await payout.save();
+    const savedPayout = await payout.save();
 
     // Log Automatic Savings
     const savings = new this.savingsModel({
@@ -88,6 +121,41 @@ export class FinanceService {
     console.log(
       `Payout ${payoutId} approved. Savings deducted: ${savingsAmount}`,
     );
+
+    // Notify User
+    await this.notificationsService.create(
+      payout.userId,
+      'Payout Ready!',
+      `Your support of ${finalPayoutAmount} from "${group.name}" is now available.`,
+      'payout_ready',
+      payout.groupId,
+      'trove://finance',
+    );
+
+    // Notify Group
+    const user = await this.usersService.findById(payout.userId);
+    const userName = user?.name || 'A member';
+    const members = await this.groupsService.getGroupMembers(payout.groupId);
+    const membersArray = Array.isArray(members) ? members : members.data;
+
+    for (const member of membersArray) {
+      const memberId =
+        (member.userId as unknown as { _id?: { toString: () => string } })
+          ._id?.toString() ||
+        (member.userId as unknown as { id?: string }).id ||
+        '';
+      if (memberId && memberId !== payout.userId) {
+        await this.notificationsService.create(
+          memberId,
+          'Payout Completed',
+          `${userName} has been selected for this round's payout in "${group.name}".`,
+          'payout_completed',
+          payout.groupId,
+          'trove://finance',
+        );
+      }
+    }
+
     return payout;
   }
 

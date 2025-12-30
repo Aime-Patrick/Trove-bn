@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Group } from '../schemas/group.schema';
@@ -6,6 +6,7 @@ import { GroupMember } from '../schemas/group-member.schema';
 import { Invite } from '../invites/schemas/invite.schema';
 import { UsersService } from '../users/users.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { LotteryGateway } from '../lottery/lottery.gateway';
 import {
   PaginationDto,
   PaginatedResult,
@@ -21,6 +22,8 @@ export class GroupsService {
     @InjectModel(Invite.name) private inviteModel: Model<Invite>,
     private usersService: UsersService,
     private notificationsService: NotificationsService,
+    @Inject(forwardRef(() => LotteryGateway))
+    private lotteryGateway: LotteryGateway,
   ) {}
 
   async createGroup(
@@ -144,6 +147,21 @@ export class GroupsService {
       invite.status = 'used';
       invite.usedBy = userId;
       await invite.save();
+
+      // Notify the inviter
+      const user = await this.usersService.findById(userId);
+      const userName = user?.name || 'A new member';
+      const group = await this.groupModel.findById(invite.groupId);
+
+      await this.notificationsService.create(
+        invite.invitedBy,
+        'Invite Accepted!',
+        `${userName} has joined "${group?.name || 'your group'}" using your invite code!`,
+        'invite_accepted',
+        invite.groupId,
+        'trove://group-details',
+      );
+
       return member;
     }
 
@@ -191,7 +209,41 @@ export class GroupsService {
     console.log(
       `User ${userId} joined group ${groupId}. Buy-in fee: ${buyInFee}`,
     );
-    return newMember.save();
+
+    const user = await this.usersService.findById(userId);
+    const userName = user?.name || 'A new member';
+
+    const savedMember = await newMember.save();
+    this.lotteryGateway.broadcastMemberJoined(groupId, savedMember);
+
+    // Notify Admin
+    await this.notificationsService.create(
+      group.adminId,
+      'New Member Joined!',
+      `${userName} has joined your group "${group.name}".`,
+      'member_joined',
+      groupId,
+      'trove://group-details',
+    );
+
+    // Notify all other members
+    const members = await this.getGroupMembers(groupId);
+    const membersArray = Array.isArray(members) ? members : members.data;
+    for (const member of membersArray) {
+      const memberId = extractUserId(member);
+      if (memberId && memberId !== userId) {
+        await this.notificationsService.create(
+          memberId,
+          'New Member Joined!',
+          `${userName} has joined the group "${group.name}".`,
+          'member_joined',
+          groupId,
+          'trove://group-details',
+        );
+      }
+    }
+
+    return savedMember;
   }
 
   async getGroupMembers(
@@ -271,6 +323,26 @@ export class GroupsService {
       .findByIdAndUpdate(id, updateData, { new: true })
       .exec();
     if (!group) throw new BadRequestException('Group not found');
+
+    this.lotteryGateway.broadcastGroupUpdate(id, group);
+
+    // Notify all members
+    const members = await this.getGroupMembers(id);
+    const membersArray = Array.isArray(members) ? members : members.data;
+    for (const member of membersArray) {
+      const memberId = extractUserId(member);
+      if (memberId) {
+        await this.notificationsService.create(
+          memberId,
+          'Group Updated',
+          `The group "${group.name}" has been updated by the admin.`,
+          'group_updated',
+          id,
+          'trove://group-details',
+        );
+      }
+    }
+
     return group;
   }
 

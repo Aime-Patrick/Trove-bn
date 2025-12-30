@@ -16,6 +16,6 @@ import { LotteryAutomationService } from './lottery-automation.service';
   ],
   providers: [LotteryService, LotteryGateway, LotteryAutomationService],
   controllers: [LotteryController],
-  exports: [LotteryService],
+  exports: [LotteryService, LotteryGateway],
 })
 export class LotteryModule {}

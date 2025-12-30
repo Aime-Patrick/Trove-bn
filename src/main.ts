@@ -18,13 +18,19 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   // CORS - Configure based on environment
-  const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || [
-    'http://localhost:3000',
-    'http://localhost:19006',
+  const defaultOrigins = [
+    'http://localhost:3000',    // Web dashboard (local)
+    'http://localhost:19006',   // Expo Web (default port)
+    'http://localhost:8081',    // Newer Expo/Metro port
   ];
+
+  const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || defaultOrigins;
+
   app.enableCors({
     origin: process.env.NODE_ENV === 'production' ? allowedOrigins : true, // Allow all in development
     credentials: true,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: 'Content-Type, Accept, Authorization',
   });
 
   // Global Exception Filter

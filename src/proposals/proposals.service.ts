@@ -103,10 +103,39 @@ export class ProposalsService {
 
     if (yes > totalMembers / 2) {
       proposal.status = ProposalStatus.APPROVED;
-      // TODO: Execute the change (using a strategy pattern or switch case)
       await this.executeProposal(proposal);
+
+      // Notify group about approval
+      for (const member of membersArray) {
+        const memberUserId = extractUserId(member);
+        if (memberUserId) {
+          await this.notificationsService.create(
+            memberUserId,
+            'Proposal Passed!',
+            `The proposal "${proposal.description}" has been approved by the group.`,
+            'proposal_approved',
+            proposal.groupId,
+            'trove://proposals',
+          );
+        }
+      }
     } else if (no >= totalMembers / 2) {
       proposal.status = ProposalStatus.REJECTED;
+
+      // Notify group about rejection
+      for (const member of membersArray) {
+        const memberUserId = extractUserId(member);
+        if (memberUserId) {
+          await this.notificationsService.create(
+            memberUserId,
+            'Proposal Declined',
+            `The proposal "${proposal.description}" did not receive enough votes.`,
+            'proposal_rejected',
+            proposal.groupId,
+            'trove://proposals',
+          );
+        }
+      }
     }
 
     return proposal.save();

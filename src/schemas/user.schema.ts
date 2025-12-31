@@ -29,6 +29,9 @@ export class User extends Document {
 
   @Prop({ required: false })
   deviceToken?: string;
+
+  @Prop({ required: false, default: false })
+  isInvited: boolean;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

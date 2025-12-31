@@ -48,7 +48,7 @@ export class AuthService {
         user = await this.usersService.create({
           phoneNumber,
           name: 'New Admin',
-          role: UserRole.MEMBER, // Will be upgraded to GROUP_ADMIN when they create a group
+          role: UserRole.GROUP_ADMIN, // Immediately set as GROUP_ADMIN
         });
       } else if (intent === 'join') {
         // Strict Member Onboarding
@@ -67,10 +67,19 @@ export class AuthService {
           phoneNumber,
           name: 'New Member',
           role: UserRole.MEMBER,
+          isInvited: true,
         });
 
         // Auto-join Group
-        await this.groupsService.joinGroup(user._id.toString(), invite.groupId);
+        try {
+          await this.groupsService.joinGroup(
+            user._id.toString(),
+            invite.groupId,
+          );
+        } catch (error) {
+          await this.usersService.delete(user._id.toString());
+          throw error;
+        }
 
         // Mark invite as accepted
         await this.invitesService.acceptInvite((invite as any)._id.toString());
@@ -148,7 +157,7 @@ export class AuthService {
         user = await this.usersService.create({
           phoneNumber,
           name: 'New Admin',
-          role: UserRole.MEMBER, // Will be upgraded to GROUP_ADMIN when they create a group
+          role: UserRole.GROUP_ADMIN, // Immediately set as GROUP_ADMIN
         });
       } else if (intent === 'join') {
         // Strict Member Onboarding
@@ -167,10 +176,19 @@ export class AuthService {
           phoneNumber,
           name: 'New Member',
           role: UserRole.MEMBER,
+          isInvited: true,
         });
 
         // Auto-join Group
-        await this.groupsService.joinGroup(user._id.toString(), invite.groupId);
+        try {
+          await this.groupsService.joinGroup(
+            user._id.toString(),
+            invite.groupId,
+          );
+        } catch (error) {
+          await this.usersService.delete(user._id.toString());
+          throw error;
+        }
 
         // Mark invite as accepted
         await this.invitesService.acceptInvite((invite as any)._id.toString());
